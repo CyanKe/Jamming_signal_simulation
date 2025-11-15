@@ -1,7 +1,7 @@
 % ==========================================================
 % generate_base_signal.m - 生成基础LFM脉冲串信号
 % ==========================================================
-function [tx, params_out] = generate_base_signal(params)
+function [tx, params_out] = generate_0base_signal(params)
     fs = params.fs;
     ts = 1/fs;
     
@@ -32,4 +32,5 @@ function [tx, params_out] = generate_base_signal(params)
     params_out.ttau = ttau;
     params_out.target_start_idx_in_PRI = target_start_idx_in_PRI;
     params_out.lfm = lfm;
+    
 end

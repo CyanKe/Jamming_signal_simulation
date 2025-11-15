@@ -1,7 +1,7 @@
 % ==========================================================
 % generate_spot_jamming.m - 生成瞄准式干扰样本
 % ==========================================================
-function [samples, labels] = generate_sj_jamming(tx, params, label, data_num)
+function [samples, labels] = generate_7sj_jamming(tx, params, label, data_num)
 % 解包参数
 fs = params.fs;
 N_total = params.N_total;

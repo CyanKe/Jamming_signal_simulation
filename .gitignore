@@ -1,0 +1,9 @@
+# 忽略所有 .asv 备份文件
+*.asv
+# 忽略所有 .mat 数据文件
+*.mat
+# 忽略常见的系统或临时文件
+.DS_Store    # macOS
+Thumbs.db    # Windows
+*.log
+*.tmp

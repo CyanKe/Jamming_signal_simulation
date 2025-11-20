@@ -1,4 +1,4 @@
-function [samples, labels] = generate_1dftj_jamming(tx, params, label, data_num)
+function [pure_jam] = generate_1dftj_jamming(tx, params, data_num)
 % 解包参数
 fs = params.fs;
 N_total = params.N_total;
@@ -10,12 +10,13 @@ Np = params.Np;
 
 
 % 初始化输出
-samples = zeros(data_num, N_total);
-labels = ones(data_num, 1) * label;
+% samples = zeros(data_num, N_total);
+% labels = ones(data_num, 1) * label;
+pure_jam = zeros(data_num, N_total);
 for m = 1:data_num
     % --- 生成噪声 ---
-    white_noise = randn([1,N_total]) + 1j*randn([1,N_total]);
-    white_noise = white_noise / std(white_noise); % 标准化
+    % white_noise = randn([1,N_total]) + 1j*randn([1,N_total]);
+    % white_noise = white_noise / std(white_noise); % 标准化
 
     % --- 1. 设置假目标参数 ---
     k = 3;%+randi([3, 6]);  % 随机产生3-6个假目标
@@ -50,16 +51,18 @@ for m = 1:data_num
         end
     end
 
-    % --- 4. 将单个PRI的干扰模板复制到整个信号长度 ---
-    jam_signal = repmat(jam_pri, 1, Np);
+    pure_jam(m,:) = repmat(jam_pri, 1, Np);
 
-    % --- 混合信号 ---
-    pure_echo = As * tx;
-    rx = pure_echo + jam_signal + white_noise;
-
-    % --- 归一化 (防止梯度爆炸) ---
-    rx = rx / max(abs(rx));
-
-    samples(m, :) = rx;
+    % % --- 4. 将单个PRI的干扰模板复制到整个信号长度 ---
+    % jam_signal = repmat(jam_pri, 1, Np);
+    % 
+    % % --- 混合信号 ---
+    % pure_echo = As * tx;
+    % rx = pure_echo + jam_signal + white_noise;
+    % 
+    % % --- 归一化 (防止梯度爆炸) ---
+    % rx = rx / max(abs(rx));
+    % 
+    % samples(m, :) = rx;
 end
 end

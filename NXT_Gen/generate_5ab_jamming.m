@@ -1,7 +1,7 @@
 % ==========================================================
 % generate_spot_jamming.m - 生成瞄准式干扰样本
 % ==========================================================
-function [samples, labels] = generate_5ab_jamming(tx, params, label, data_num)
+function [pure_jam] = generate_5ab_jamming(tx, params, data_num)
 % 解包参数
 fs = params.fs;
 N_total = params.N_total;
@@ -11,12 +11,13 @@ Bj = params.BJ; % 瞄准带宽
 fjc = 0;   % 干扰中心频率
 
 % 初始化输出
-samples = zeros(data_num, N_total);
-labels = ones(data_num, 1) * label;
+% samples = zeros(data_num, N_total);
+% labels = ones(data_num, 1) * label;
+pure_jam = zeros(data_num, N_total);
     for m = 1:data_num
-        % --- 生成噪声 ---
-        white_noise = randn([1,N_total]) + 1j*randn([1,N_total]);
-        white_noise = white_noise / std(white_noise); % 标准化
+        % % --- 生成噪声 ---
+        % white_noise = randn([1,N_total]) + 1j*randn([1,N_total]);
+        % white_noise = white_noise / std(white_noise); % 标准化
 
         % --- 生成瞄准干扰 ---
         lpFilt = fir1(34, Bj/fs, chebwin(35,30));
@@ -24,13 +25,15 @@ labels = ones(data_num, 1) * label;
         tj = (0:N_total-1)/fs;
         jam_signal = Aj * (sp_j .* exp(1j*2*pi*fjc*tj));
 
-        % --- 混合信号 ---
-        pure_echo = As * tx;
-        rx = pure_echo + jam_signal + white_noise;
+        pure_jam(m,:) = jam_signal;
 
-        % --- 归一化 (防止梯度爆炸) ---
-        rx = rx / max(abs(rx));
-
-        samples(m, :) = rx;
+        % % --- 混合信号 ---
+        % pure_echo = As * tx;
+        % rx = pure_echo + jam_signal + white_noise;
+        % 
+        % % --- 归一化 (防止梯度爆炸) ---
+        % rx = rx / max(abs(rx));
+        % 
+        % samples(m, :) = rx;
     end
 end

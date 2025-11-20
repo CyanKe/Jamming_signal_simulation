@@ -1,7 +1,7 @@
 % ==========================================================
 % generate_rgpo_jamming.m - 生成距离拖引(RGPO)假目标干扰样本
 % ==========================================================
-function [samples, labels] = generate_3rgpo_jamming(tx, params, label, data_num)
+function [samples, labels] = generate_3rgpo_jamming(tx, params, data_num)
 % 解包参数
 fs = params.fs;             % 采样率
 N_total = params.N_total;   % 总采样点数
@@ -19,12 +19,13 @@ initial_delay_s = 0;
 v = params.v;
 pull_off_rate_sps = v*2/3e8;% 1.5e-5; 
 % 初始化输出
-samples = zeros(data_num, N_total);
-labels = ones(data_num, 1) * label;
+% samples = zeros(data_num, N_total);
+% labels = ones(data_num, 1) * label;
+pure_jam = zeros(data_num, N_total);
 for m = 1:data_num
-    % --- 生成噪声 ---
-    white_noise = randn([1, N_total]) + 1j*randn([1, N_total]);
-    white_noise = white_noise / std(white_noise); % 标准化
+    % % --- 生成噪声 ---
+    % white_noise = randn([1, N_total]) + 1j*randn([1, N_total]);
+    % white_noise = white_noise / std(white_noise); % 标准化
     % --- 生成干扰信号 (RGPO) ---
     % 初始化整个干扰信号为空
     jam_signal = zeros(1, N_total);
@@ -61,11 +62,12 @@ for m = 1:data_num
             jam_signal(abs_start_idx:abs_end_idx) = Aj * lfm_template;
         end
     end
-    % --- 混合信号 ---
-    pure_echo = As * tx;
-    rx = pure_echo + jam_signal + white_noise;
-    % --- 归一化 (防止梯度爆炸) ---
-    rx = rx / max(abs(rx));
-    samples(m, :) = rx;
+    pure_jam(m,:) = jam_signal;
+    % % --- 混合信号 ---
+    % pure_echo = As * tx;
+    % rx = pure_echo + jam_signal + white_noise;
+    % % --- 归一化 (防止梯度爆炸) ---
+    % rx = rx / max(abs(rx));
+    % samples(m, :) = rx;
 end
 end

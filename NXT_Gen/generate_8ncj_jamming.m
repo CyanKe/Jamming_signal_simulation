@@ -1,7 +1,7 @@
 % ==========================================================
 % generate_spot_jamming.m - 生成瞄准式干扰样本
 % ==========================================================
-function [samples, labels] = generate_8ncj_jamming(tx, params, label, data_num)
+function [pure_jam] = generate_8ncj_jamming(tx, params, data_num)
 % 解包参数
 fs = params.fs;
 N_total = params.N_total;
@@ -14,12 +14,13 @@ Ntau = params.Ntau;
 Np = params.Np;
 
 % 初始化输出
-samples = zeros(data_num, N_total);
-labels = ones(data_num, 1) * label;
+% samples = zeros(data_num, N_total);
+% labels = ones(data_num, 1) * label;
+pure_jam = zeros(data_num, N_total);
 for m = 1:data_num
-    % --- 生成噪声 ---
-    white_noise = randn([1,N_total]) + 1j*randn([1,N_total]);
-    white_noise = white_noise / std(white_noise); % 标准化
+    % % --- 生成噪声 ---
+    % white_noise = randn([1,N_total]) + 1j*randn([1,N_total]);
+    % white_noise = white_noise / std(white_noise); % 标准化
 
     % --- 1. 生成用于卷积的噪声源 ---
     % 这个噪声是干扰机内部产生的，用于生成干扰信号
@@ -79,14 +80,14 @@ for m = 1:data_num
     % --- 5. 将单个PRI的干扰模板复制到整个信号长度 ---
     jam_signal = repmat(jam_pri, 1, Np);
 
-
-    % --- 混合信号 ---
-    pure_echo = As * tx;
-    rx = pure_echo + jam_signal + white_noise;
-
-    % --- 归一化 (防止梯度爆炸) ---
-    rx = rx / max(abs(rx));
-
-    samples(m, :) = rx;
+    pure_jam(m,:) = repmat(jam_pri, 1, Np);
+    % % --- 混合信号 ---
+    % pure_echo = As * tx;
+    % rx = pure_echo + jam_signal + white_noise;
+    % 
+    % % --- 归一化 (防止梯度爆炸) ---
+    % rx = rx / max(abs(rx));
+    % 
+    % samples(m, :) = rx;
 end
 end

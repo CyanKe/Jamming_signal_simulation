@@ -15,9 +15,9 @@ fjc = 0;   % 干扰中心频率
 % labels = ones(data_num, 1) * label;
 pure_jam = zeros(data_num, N_total);
     for m = 1:data_num
-        % % --- 生成噪声 ---
-        % white_noise = randn([1,N_total]) + 1j*randn([1,N_total]);
-        % white_noise = white_noise / std(white_noise); % 标准化
+        % --- 生成噪声 ---
+        white_noise = randn([1,N_total]) + 1j*randn([1,N_total]);
+        white_noise = white_noise / std(white_noise); % 标准化
 
         % --- 生成瞄准干扰 ---
         lpFilt = fir1(34, Bj/fs, chebwin(35,30));

@@ -23,7 +23,7 @@ pull_off_rate_hz_per_s = params.pull; % 例如，每秒增加5kHz的多普勒频
 % 初始化输出
 % samples = zeros(data_num, N_total);
 % labels = ones(data_num, 1) * label;
-pure_jam = zeros(data_num, N_total);
+pure_jam = zeros(1, N_total);
 for m = 1:data_num
     % % --- 生成噪声 ---
     % white_noise = randn([1, N_total]) + 1j*randn([1, N_total]);

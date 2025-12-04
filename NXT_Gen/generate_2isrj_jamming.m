@@ -12,7 +12,7 @@ ttau = params.ttau;
 Ntau = params.Ntau;
 Np = params.Np;
 repetition_times_arr=[4,3,2,1];   %重复次数
-period_arr=[5e-6,10e-6];    %采样脉冲周期 taup / period = 4 或 2，表示采样次数
+period_arr=[25e-7,5e-6,10e-6];    %采样脉冲周期 taup / period = 4 或 2，表示采样次数
 duty_arr=[20,25,33.33,50];  %占空比
 
 
@@ -49,11 +49,11 @@ for m = 1:data_num
     jam_pri = zeros(1, PRI_samp);
 
     % 计算每次转发的固定延迟时间，即采样脉冲的宽度 ("on" time)
-    delay_time = sampling_period * (sampling_duty / 100)*2;
+    delay_time = sampling_period * (sampling_duty / 100);
     delay_samp = round(delay_time * fs); % 转换为采样点数
 
     % 循环多次转发，形成一串等间隔的假目标
-    for i = 1:repetition_times
+    for i = 1:repetition_times+1
         % 干扰切片的起始位置 = 真实目标位置 + 累积的延迟
         left_range = params.pos + i * delay_samp;
         right_range = left_range + Ntau - 1;

@@ -39,7 +39,7 @@ for m = 1:data_num
     % --- 3. 在一个PRI内生成转发干扰串 ---
     % 我们首先在一个PRI内生成干扰，然后将其复制到所有PRI
     jam_pri = zeros(1, PRI_samp);
-    repetition_times = 5 + randi(5); % 转发5-10次
+    repetition_times = 10 + randi(5); % 转发5-10次
 
     for i = 1:repetition_times
         % 设置每次转发的随机延迟
@@ -63,9 +63,10 @@ for m = 1:data_num
             noise_segment = product_noise(left_range : right_range);
             % 将门控LFM与噪声片段进行逐元素相乘
             npj_segment = gated_lfm .* noise_segment;
+            npj_segment = npj_segment./abs(max(npj_segment));
 
             % 为每次转发设置一个随机幅度
-            Aj_rand = Aj * (0.5 + rand());
+            Aj_rand = Aj * (0.9 + rand()*0.2);
             jam_pri(left_range:right_range) = jam_pri(left_range:right_range) + Aj_rand * npj_segment;
         end
     end

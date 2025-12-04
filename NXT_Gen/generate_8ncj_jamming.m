@@ -47,7 +47,9 @@ for m = 1:data_num
     % --- 4. 在一个PRI内生成转发干扰串 ---
     % 我们首先在一个PRI内生成干扰，然后将其复制到所有PRI
     jam_pri = zeros(1, PRI_samp);
+    jam_conv_result = jam_conv_result./abs(max(jam_conv_result));
     repetition_times = 5 + randi(5); % 转发5-10次
+
 
     for i = 1:repetition_times
         % 设置每次转发的随机延迟 (e.g., 1us to 5us)
@@ -72,7 +74,7 @@ for m = 1:data_num
             jam_segment = jam_conv_result(start_point : start_point + Ntau - 1);
 
             % 为每次转发设置一个随机幅度
-            Aj_rand = Aj * (0.5 + rand());
+            Aj_rand = Aj * (0.9 + rand()*0.2);
             jam_pri(left_range:right_range) = jam_pri(left_range:right_range) + Aj_rand * jam_segment;
         end
     end

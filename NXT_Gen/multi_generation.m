@@ -69,6 +69,11 @@ for m = 1:data_num
                 jam_params = params;
                 jam_params.JNR = current_jnr; % 噪声乘积干扰
                 [pure_jam] = generate_9npj_jamming(tx, jam_params, 1);
+            
+            case 10
+                jam_params = params;
+                jam_params.JNR = current_jnr; % 噪声乘积干扰
+                [pure_jam] = generate_10smspj_jamming(tx, jam_params, 1);
         end
         sum_jam = sum_jam+pure_jam;
     end

@@ -1,4 +1,5 @@
 function [pure_jam] = generate_1dftj_jamming(tx, params, data_num)
+
 % 解包参数
 fs = params.fs;
 N_total = params.N_total;
@@ -7,7 +8,7 @@ Aj = 10^(params.JNR/20);
 PRI_samp = params.PRI_samp;
 Ntau = params.Ntau;
 Np = params.Np; 
-
+pos = params.pos;
 
 % 初始化输出
 % samples = zeros(data_num, N_total);
@@ -32,7 +33,7 @@ for m = 1:data_num
         delay_samp = round(delay_time * fs);
         if i == 1
             % 第一个假目标相对于真实目标的位置
-            left_range = params.pos + delay_samp*m;
+            left_range = pos + delay_samp*m;
         else
             % 后续假目标相对于前一个假目标的位置
             left_range = last_pos + delay_samp;
@@ -46,7 +47,7 @@ for m = 1:data_num
         if right_range <= PRI_samp
             % 为每个假目标设置一个随机幅度 (0.5到1.5倍的Aj)
             % Aj_rand = Aj * (0.5 + rand());
-            lfm = tx(1,params.pos:params.pos+params.Ntau-1);
+            lfm = tx(1, pos : pos + Ntau - 1);
             jam_pri(left_range:right_range) = jam_pri(left_range:right_range) + Aj * lfm;
         end
     end

@@ -11,7 +11,7 @@ labels = ones(data_num, numClasses) .* oneHotEncoded;
 
 for m = 1:data_num
     % 生成基础目标信号 (所有干扰类型共用)
-    params.pos = 5000+randi([-2000 2000]);
+
     [tx, params] = generate_0base_signal(params);
     % --- 生成噪声 ---
     white_noise = randn([1,N_total]) + 1j*randn([1,N_total]);
@@ -72,8 +72,13 @@ for m = 1:data_num
             
             case 10
                 jam_params = params;
-                jam_params.JNR = current_jnr; % 噪声乘积干扰
+                jam_params.JNR = current_jnr; % 弥散谱干扰
                 [pure_jam] = generate_10smspj_jamming(tx, jam_params, 1);
+
+            case 11
+                jam_params = params;
+                jam_params.JNR = current_jnr; % 切片交织干扰
+                [pure_jam] = generate_11cij_jamming(tx, jam_params, 1);
         end
         sum_jam = sum_jam+pure_jam;
     end

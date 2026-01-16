@@ -12,7 +12,7 @@ ttau = params.ttau;
 Ntau = params.Ntau;
 Np = params.Np;
 repetition_times_arr=[4,3,2,1];   %重复次数
-period_arr=[25e-7,5e-6,10e-6];    %采样脉冲周期 taup / period = 4 或 2，表示采样次数
+period_arr=[25e-7, 5e-6, 10e-6];    %采样脉冲周期 taup / period = 4 或 2，表示采样次数
 duty_arr=[20,25,33.33,50];  %占空比
 
 
@@ -27,10 +27,10 @@ for m = 1:data_num
     % white_noise = white_noise / std(white_noise); % 标准化
 
     % --- 1. 从数组中随机选择ISRJ参数 ---
-    index1 = 1 + round(rand(1,1));          % 随机选择周期 (索引1或2)
+    index1 = randi([1 4]);          % 随机选择周期 (索引1或2)
     sampling_period = period_arr(index1);
 
-    index2 = 1 + round(rand(1,1)*3);      % 随机选择占空比 (索引1到4)
+    index2 = randi([1 4]);      % 随机选择占空比 (索引1到4)
     sampling_duty = duty_arr(index2);
 
     % 关键：转发次数与占空比通过同一个索引index2关联

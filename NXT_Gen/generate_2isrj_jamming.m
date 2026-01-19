@@ -27,10 +27,10 @@ for m = 1:data_num
     % white_noise = white_noise / std(white_noise); % 标准化
 
     % --- 1. 从数组中随机选择ISRJ参数 ---
-    index1 = randi([1 4]);          % 随机选择周期 (索引1或2)
+    index1 = randi([1 3]);          % 随机选择周期 (索引1或2)
     sampling_period = period_arr(index1);
 
-    index2 = randi([1 4]);      % 随机选择占空比 (索引1到4)
+    index2 = randi([1 3]);      % 随机选择占空比 (索引1到4)
     sampling_duty = duty_arr(index2);
 
     % 关键：转发次数与占空比通过同一个索引index2关联

@@ -13,7 +13,7 @@ Ntau = params.Ntau;
 Np = params.Np; 
 pos = params.pos;
 B = params.B;
-M = randi([2 10]); % 扫频分段数 (M需为整数)
+M = randi([4 8]); % 扫频分段数 (M需为整数)
 
 % 初始化输出
 pure_jam = zeros(data_num, N_total);

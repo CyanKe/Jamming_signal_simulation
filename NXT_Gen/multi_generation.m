@@ -11,7 +11,7 @@ labels = ones(data_num, numClasses) .* oneHotEncoded;
 
 for m = 1:data_num
     % 生成基础目标信号 (所有干扰类型共用)
-    params.pos = 500+randi([0 11000]);      %在PRI中第5000点处
+    params.pos = 500+randi([0 5000]);      %在PRI中第5000点处
     [tx, params] = generate_0base_signal(params);
     % --- 生成噪声 ---
     

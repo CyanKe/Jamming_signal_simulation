@@ -55,12 +55,14 @@ for m = 1:data_num
     % 循环多次转发，形成一串等间隔的假目标
     for i = 1:repetition_times+1
         % 干扰切片的起始位置 = 真实目标位置 + 累积的延迟
+        if i~=1
         left_range = params.pos + i * delay_samp;
         right_range = left_range + Ntau - 1;
-
+        
         % 检查是否超出当前PRI的范围，避免索引错误
         if right_range <= PRI_samp
             jam_pri(left_range:right_range) = jam_pri(left_range:right_range) + Aj * jam_slice;
+        end
         end
     end
     

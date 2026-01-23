@@ -80,6 +80,33 @@ for m = 1:data_num
                 jam_params = params;
                 jam_params.JNR = current_jnr; % 切片交织干扰
                 [pure_jam] = generate_11cij_jamming(tx, jam_params, 1);
+            case 12
+                jam_params = params;
+                jam_params.JNR = current_jnr; % 噪声调频干扰
+                jam_params.BJ = 40e6;         % 干扰带宽 20MHz
+                % jam_params.Kf = 1;
+                [pure_jam] = generate_12nfmj_jamming(tx, jam_params, 1);
+            case 13
+                jam_params = params;
+                jam_params.JNR = current_jnr; % 噪声调频干扰
+                jam_params.BJ = 40e6;         % 干扰带宽 20MHz
+                % jam_params.Kf = 1;
+                [pure_jam] = generate_13npmj_jamming(tx, jam_params, 1);
+            case 14
+                jam_params = params;
+                jam_params.JNR = current_jnr; % 噪声调频干扰
+                jam_params.BJ = 20e6;         % 干扰带宽 20MHz
+                % jam_params.Kf = 1;
+                [pure_jam] = generate_14namj_jamming(tx, jam_params, 1);
+            case 15
+                jam_params = params;
+                jam_params.JNR = current_jnr; % 噪声调频干扰
+                [pure_jam] = generate_15csj_jamming(tx, jam_params, 1);
+            case 16
+                jam_params = params;
+                jam_params.JNR = current_jnr; % 噪声调频干扰
+                jam_params.freq_j = 1e3;
+                [pure_jam] = generate_16pulse_jamming(tx, jam_params, 1);
         end
         sum_jam = sum_jam+pure_jam;
     end

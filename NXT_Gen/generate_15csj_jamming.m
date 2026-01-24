@@ -4,8 +4,6 @@
 % ==========================================================
 function [pure_jam] = generate_15csj_jamming(tx, params, data_num)
 % 解包参数
-fs      = params.fs;
-fc      = params.fc;
 B       = params.B;
 taup    = params.taup;          % LFM 脉宽 (s)
 Np      = params.Np;            % PRI 个数
@@ -28,31 +26,19 @@ t_pulse = params.ttau;
 for m = 1:data_num
 
     % ---------- 1. 梳状谱参数（可随机） ----------
-    M = 3%randi([3, 10]);              % 梳齿数
-    Q = 0.08%0.05 + 0.05 * rand();       % 频率间隔系数
-    P = 0.6%0.5  + 0.5  * rand();       % 幅度系数
+    M = randi([3, 10]);              % 梳齿数
+    Q = 0.05 + 0.05 * rand();       % 频率间隔系数
+    P = 0.5  + 0.5  * rand();       % 幅度系数
 
     % ---------- 2. 生成梳状谱信号 ----------
     comb_pulse = zeros(1, Ntau);
 
     for k = 1:M
-        fk = k * Q * fc;
+        % fk = k * Q * B;
+        delta_f = Q * B;   % B 是 LFM 带宽
+        fk = (k - (M+1)/2) * delta_f;
         comb_pulse = comb_pulse + P * exp(1j * 2*pi*fk * real(t_pulse));
     end
-
-    subplot(1,2,1);
-    plot(params.ttau*1e3, real(comb_pulse));
-    % axis([0 3.2 -1.1 1.1])
-    axis tight;
-    xlabel('Time / ms'); ylabel('Amplitude');
-
-    subplot(1,2,2);
-
-    [S,F,T] = spectrogram(comb_pulse,128,64,256,params.fs, 'centered');
-    % S = all_S(50*i-49,:,:);
-    S = squeeze(S);
-    imagesc(T*1e6,F/1e6,abs(S));
-    xlabel('Time/μs'); ylabel('Frequency/MHz');
 
     % ---------- 3. 被干扰的 LFM ----------
     lfm_pulse = tx(1, pos : pos + Ntau - 1);

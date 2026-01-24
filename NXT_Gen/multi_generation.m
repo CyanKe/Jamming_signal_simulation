@@ -105,7 +105,6 @@ for m = 1:data_num
             case 16
                 jam_params = params;
                 jam_params.JNR = current_jnr; % 噪声调频干扰
-                jam_params.freq_j = 1e3;
                 [pure_jam] = generate_16pulse_jamming(tx, jam_params, 1);
         end
         sum_jam = sum_jam+pure_jam;

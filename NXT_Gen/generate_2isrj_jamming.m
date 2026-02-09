@@ -1,7 +1,7 @@
 % ==========================================================
 % generate_spot_jamming.m - 生成瞄准式干扰样本
 % ==========================================================
-function [pure_jam] = generate_2isrj_jamming(tx, params, data_num)
+function [pure_jam,bbox_info] = generate_2isrj_jamming(tx, params, data_num)
 % 解包参数
 fs = params.fs;
 N_total = params.N_total;
@@ -14,7 +14,7 @@ Np = params.Np;
 repetition_times_arr=[4,3,2,1];   %重复次数
 period_arr=[25e-7, 5e-6, 10e-6];    %采样脉冲周期 taup / period = 4 或 2，表示采样次数
 duty_arr=[20,25,33.33,50];  %占空比
-
+B = params.B;
 
 % 初始化输出
 % samples = zeros(data_num, N_total);
@@ -48,6 +48,11 @@ for m = 1:data_num
     % 我们首先在一个PRI内生成干扰，然后将其复制到所有PRI
     jam_pri = zeros(1, PRI_samp);
 
+    % 存储bounding box信息
+    bbox_info = [];
+    x_min = inf; x_max = -inf;
+    y_min = inf; y_max = -inf;
+
     % 计算每次转发的固定延迟时间，即采样脉冲的宽度 ("on" time)
     delay_time = sampling_period * (sampling_duty / 100);
     delay_samp = round(delay_time * fs); % 转换为采样点数
@@ -56,28 +61,47 @@ for m = 1:data_num
     for i = 1:repetition_times+1
         % 干扰切片的起始位置 = 真实目标位置 + 累积的延迟
         if i~=1
-        left_range = params.pos + i * delay_samp;
-        right_range = left_range + Ntau - 1;
-        
-        % 检查是否超出当前PRI的范围，避免索引错误
-        if right_range <= PRI_samp
-            jam_pri(left_range:right_range) = jam_pri(left_range:right_range) + Aj * jam_slice;
+            left_range = params.pos + i * delay_samp;
+            right_range = left_range + Ntau - 1;
+
+            % 检查是否超出当前PRI的范围，避免索引错误
+            if right_range <= PRI_samp
+                jam_pri(left_range:right_range) = jam_pri(left_range:right_range) + Aj * lfm;
+            else
+                % 只要 lfm 的长度与目标区域的长度不一致，就取较小的那个长度
+                right_boundary = min(PRI_samp, left_range + length(lfm) - 1);
+                % 重新定义索引范围并赋值
+                jam_pri(left_range:right_boundary) = jam_pri(left_range:right_boundary) + ...
+                    Aj * lfm(1 : (right_boundary - left_range + 1));
+            end
+        % 计算bounding box
+        % 时域范围
+        x_min = min(x_min,left_range);
+        x_max = max(x_max,right_range);
+        x_max = min(x_max,PRI_samp);
+
+        % 频域范围（LFM信号带宽）
+        y_min = min(y_min,- B / 2);  % 最低频率
+        y_max = max(y_max, B / 2);  % 最高频率
         end
-        end
+
     end
-    
+
+    pure_jam(m,:) = repmat(jam_pri, 1, Np);
+    % 添加到bounding box列表
+    bbox_info = [bbox_info; x_min, y_min, x_max, y_max];
     pure_jam(m,:) = repmat(jam_pri, 1, Np);
 
     % % --- 4. 将单个PRI的干扰模板复制到整个信号长度 ---
     % jam_signal = repmat(jam_pri, 1, Np);
-    % 
+    %
     % % --- 混合信号 ---
     % pure_echo = As * tx;
     % rx = pure_echo + jam_signal + white_noise;
-    % 
+    %
     % % --- 归一化 (防止梯度爆炸) ---
     % rx = rx / max(abs(rx));
-    % 
+    %
     % samples(m, :) = rx;
 end
 end

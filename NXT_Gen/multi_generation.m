@@ -24,7 +24,7 @@ for m = 1:data_num
             case 1
                 jam_params = params;
                 jam_params.JNR = current_jnr; % 密集假目标干扰
-                [pure_jam] = generate_1dftj_jamming(tx, jam_params, 1);
+                [pure_jam,~] = generate_1dftj_jamming(tx, jam_params, 1);
 
             case 2
                 jam_params = params;

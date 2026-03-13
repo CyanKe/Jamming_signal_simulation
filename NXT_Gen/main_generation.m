@@ -109,7 +109,11 @@ for current_jnr = JNR_values
     current_jnr
     all_times = zeros(SAMPLE_NUM,params.PRI_samp);
     all_label = zeros(SAMPLE_NUM,params.numClasses);
-    all_stfts = zeros(SAMPLE_NUM,64,124);
+    Nwin = 128; Noverlap = 64;
+    Step = Nwin - Noverlap; 
+    N_cols = floor((params.N_total - Noverlap) / Step);
+    Nfft = 64;
+    all_stfts = zeros(SAMPLE_NUM,Nfft,N_cols);
     point_l = 1;
     for i = 1:len
         % 生成基础目标信号 (所有干扰类型共用)
@@ -145,7 +149,7 @@ for current_jnr = JNR_values
         % 追加到总数据集中
     end
     for i = 1:SAMPLE_NUM
-        [S,F,T] = spectrogram(all_times(i,1:params.PRI_samp),128,128-64,64,params.fs, 'centered');
+        [S,F,T] = spectrogram(all_times(i,1:params.PRI_samp),Nwin,Noverlap,Nfft,params.fs, 'centered');
         all_stfts(i,:,:) = S;
     end
     

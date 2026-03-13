@@ -19,10 +19,10 @@ params.Np = 1;           % 脉冲个数 1
 params.PRI = 100e-6;     % 脉冲重复间隔 100us
 params.SNR = 15;         % 信噪比
 params.numClasses = 16;  % 基础九种干扰
-SAMPLE_NUM_S = 10;
+SAMPLE_NUM_S = 2;
 SAMPLE_NUM_M = 5;
 % JNR_values = 5:5:50;    %干噪比范围 dB
-JNR_values = 50;    %干噪比范围 dB
+JNR_values = 15;    %干噪比范围 dB
 params.pos = 1000+randi([0 6000]);  % 在PRI中第5000点处
 
 % STFT参数（与Python脚本保持一致）

@@ -28,11 +28,11 @@ for m = 1:data_num
 
     % --- 1. 从数组中随机选择ISRJ参数 ---
     index1 = randi([1 4]);          % 随机选择周期 (索引1或2)
-    M = sampling_times_arr(index1);
+    N = sampling_times_arr(index1);
 
     index2 = randi([1 4]);      % 随机选择占空比 (索引1到4)
-    N = repetition_times_arr(index2);
-    M = 2;N = 2;
+    M = repetition_times_arr(index2);
+    M = 4;N = 3;
 
     % --- 2. 生成采样方波并对LFM信号进行切片 ---
     % 使用与LFM脉冲相同的时间轴ttau来生成方波
@@ -54,7 +54,7 @@ for m = 1:data_num
 
 
     % 循环多次转发，形成一串等间隔的假目标
-    for i = 1:N
+    for i = 1:M
         % 干扰切片的起始位置 = 真实目标位置 + 累积的延迟
         % if i~=1
             left_range = params.pos + i * delay_samp;

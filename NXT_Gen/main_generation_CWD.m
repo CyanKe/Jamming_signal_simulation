@@ -11,7 +11,7 @@ params.taup = 20e-6;     % LFM 脉宽 20us
 params.Np = 1;           % 脉冲个数 1  ->只在单个 PRI 内测试
 params.PRI = 100e-6;     % 脉冲重复间隔 us
 params.SNR = 15;         % 信噪比
-JNR_values = 15;    % 干噪比范围 dB
+JNR_values = 50;    % 干噪比范围 dB
 params.numClasses = 16;    % 基础九种干扰
 SAMPLE_NUM_S = 2;
 SAMPLE_NUM_M = 2;
@@ -95,7 +95,7 @@ for current_jnr = JNR_values
     for i = 1:SAMPLE_NUM
         [S,~,~] = spectrogram(all_times(i,1:params.PRI_samp),Nwin,Noverlap,Nfft,params.fs, 'centered');
         % [C,F,T] = CWD(all_times(i, 1:params.PRI_samp), params.fs, 1, 124, 64);
-        [W,T,F] = wvd(all_times(i, 1:params.PRI_samp), params.fs);
+        % [W,T,F] = wvd(all_times(i, 1:params.PRI_samp), params.fs,"smoothedPseudo");
         [C,F,T] = choiwilliams(all_times(i,1:params.PRI_samp),Nwin,Noverlap,Nfft,params.fs, 'centered', 'Sigma', 0.5);
         all_cwds(i,:,:) = C;
     end
@@ -117,15 +117,10 @@ for current_jnr = JNR_values
 end
 toc
 
-subplot(1,3,1);
+subplot(1,2,1);
 imagesc(T*1e6,F/1e6,abs(C));
 xlabel('Time/μs'); ylabel('Frequency/MHz');
 
-subplot(1,3,2);
+subplot(1,2,2);
 imagesc(T*1e6,F/1e6,abs(S));
-xlabel('Time/μs'); ylabel('Frequency/MHz');
-
-subplot(1,3,3);
-imagesc(T*1e6,F/2e6,abs(fftshift(W, 1)));
-
 xlabel('Time/μs'); ylabel('Frequency/MHz');

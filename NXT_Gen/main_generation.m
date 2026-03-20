@@ -12,12 +12,12 @@ params.Np = 1;           % 脉冲个数 1  ->只在单个PRI内测试
 params.PRI = 100e-6;     % 脉冲重复间隔 us
 params.SNR = 15;         % 信噪比
 % params.JNR = 15;         % 干噪比 (可以为不同干扰类型单独设置)
-JNR_values = 0:10:40;    %干噪比范围 dB
-% JNR_values = 50;    % 干噪比范围 dB
+% JNR_values = 0:5:40;    %干噪比范围 dB
+JNR_values = 15;    % 干噪比范围 dB
 params.numClasses = 16;    % 基础九种干扰
-SAMPLE_NUM_S = 90;
-SAMPLE_NUM_M = 500;
-params.pos = 1000+randi([0 6000]);      %在PRI中第5000点处
+SAMPLE_NUM_S = 1;
+SAMPLE_NUM_M = 2;
+params.pos = 5000;      %在PRI中第5000点处
 % --- 2. 生成计划 ---
 % 定义要生成的干扰类型和对应的标签
 generation_plan = {
@@ -25,15 +25,15 @@ generation_plan = {
     'DFTJ' , 1,  SAMPLE_NUM_S;
     'ISRJ' , 2,  SAMPLE_NUM_S;
     'SMSPJ', 10, SAMPLE_NUM_S;
-    % 'C&IJ' , 11, SAMPLE_NUM_S;
-    % 'CSJ'  , 15, SAMPLE_NUM_S;
+    'C&IJ' , 11, SAMPLE_NUM_S;
+    'CSJ'  , 15, SAMPLE_NUM_S;
     % 'RGPO' , 3,  SAMPLE_NUM;
     % 'VGPO' , 4,  SAMPLE_NUM;
 
     % 压制干扰
-    'AJ'   , 5, SAMPLE_NUM_S;
-    'BJ'   , 6, SAMPLE_NUM_S;
-    'SJ'   , 7, SAMPLE_NUM_S;
+    % 'AJ'   , 5, SAMPLE_NUM_S;
+    % 'BJ'   , 6, SAMPLE_NUM_S;
+    % 'SJ'   , 7, SAMPLE_NUM_S;
     % 'NCJ'  , 8, SAMPLE_NUM_S;
     % 'NPJ'  , 9, SAMPLE_NUM_S;
     % 'NFMJ' , 12, SAMPLE_NUM_S;
@@ -109,10 +109,10 @@ for current_jnr = JNR_values
     current_jnr
     all_times = zeros(SAMPLE_NUM,params.PRI_samp);
     all_label = zeros(SAMPLE_NUM,params.numClasses);
-    Nwin = 128; Noverlap = 64;
+    Nwin = 128; Noverlap = 93;
     Step = Nwin - Noverlap; 
     N_cols = floor((params.N_total - Noverlap) / Step);
-    Nfft = 64;
+    Nfft = 224;
     all_stfts = zeros(SAMPLE_NUM,Nfft,N_cols);
     point_l = 1;
     for i = 1:len
@@ -129,6 +129,7 @@ for current_jnr = JNR_values
         current_datetime = datetime('now', 'Format', 'yyMMdd');
         % 转换为字符串
         time_str = char(current_datetime);
+        time_str = '260316CZSL';
         % 构建目录路径
         snr_output_dir = fullfile(time_str, sprintf('JNR_%+d', current_jnr));
 
@@ -150,23 +151,46 @@ for current_jnr = JNR_values
     end
     for i = 1:SAMPLE_NUM
         [S,F,T] = spectrogram(all_times(i,1:params.PRI_samp),Nwin,Noverlap,Nfft,params.fs, 'centered');
-        all_stfts(i,:,:) = S;
+        all_stfts(i,:,:) = single(S);
     end
     
     % path_stfts = fullfile(snr_output_dir, 'train_echo_stfts.mat');
     % path_times = fullfile(snr_output_dir, 'train_echo_times.mat');
     % path_label = fullfile(snr_output_dir, 'train_echo_label.mat');
 
-    path_stfts = fullfile(snr_output_dir, 'test_echo_stfts.mat');
-    path_times = fullfile(snr_output_dir, 'test_echo_times.mat');
-    path_label = fullfile(snr_output_dir, 'test_echo_label.mat');
+    % path_stfts = fullfile(snr_output_dir, 'test_echo_stfts.mat');
+    % path_times = fullfile(snr_output_dir, 'test_echo_times.mat');
+    % path_label = fullfile(snr_output_dir, 'test_echo_label.mat');
     % 
-    % path_stfts = fullfile(snr_output_dir, 'val_echo_stfts.mat');
-    % path_times = fullfile(snr_output_dir, 'val_echo_times.mat');
-    % path_label = fullfile(snr_output_dir, 'val_echo_label.mat');
+    path_stfts = fullfile(snr_output_dir, 'val_echo_stfts.mat');
+    path_times = fullfile(snr_output_dir, 'val_echo_times.mat');
+    path_label = fullfile(snr_output_dir, 'val_echo_label.mat');
 
+    all_stfts = single(all_stfts);
     save(path_stfts, 'all_stfts', '-v7.3');
     save(path_times, 'all_times', '-v7.3');
     save(path_label, 'all_label', '-v7.3');
+
+    
 end
 toc
+
+figure(1)
+for i = 1:SAMPLE_NUM
+    subplot(2,SAMPLE_NUM,i)
+    t_axis = params.t_total;% 时间轴 us
+    plot(t_axis, real(all_times(i,:)));
+    xlabel('时间 (us)');
+    ylabel('幅度');
+    grid on;
+    
+    subplot(2,SAMPLE_NUM,SAMPLE_NUM+i)
+    imagesc(T*1e6, F/1e6, abs((squeeze(all_stfts(i,:,:)))) + eps);
+    % colormap(turbo)
+    axis xy;
+    xlabel('时间 (us)');
+    ylabel('频率 (MHz)');
+    grid on;
+
+
+end

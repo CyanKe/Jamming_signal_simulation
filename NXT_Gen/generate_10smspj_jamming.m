@@ -54,7 +54,7 @@ for m = 1:data_num
     
     % 设置干扰延迟 (例如相对于目标延迟 10us)
     % 在实际对抗中，干扰通常比目标快或重合，这里设为 5us
-    delay_samp = round(5e-6 * fs); 
+    delay_samp = round(randn()*5e-6 * fs); 
     target_pos = pos + delay_samp;
     
     right_range = target_pos + Ntau - 1;

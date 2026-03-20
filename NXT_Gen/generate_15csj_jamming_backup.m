@@ -39,14 +39,10 @@ for m = 1:data_num
     for k = 1:M
         delta_f = Q * B;   % 频率间隔
         fk = (k - (M+1)/2) * delta_f;  % 关于零频率对称
-
-        % 使用每个梳齿的独立权重 ak(k)
-        comb_pulse = comb_pulse + ak(k) * exp(1j * 2*pi*fk * real(t_pulse));
+        
+        % 【修正】使用每个梳齿的独立权重 ak(k)
+        comb_pulse = comb_pulse + P * exp(1j * 2*pi*fk * real(t_pulse));
     end
-
-    % 【修正】归一化梳状谱功率，使总功率为1
-    comb_power = sum(ak.^2);  % 理论功率 = sum(ak^2)
-    comb_pulse = comb_pulse / sqrt(comb_power);
 
     % ---------- 3. 被干扰的 LFM ----------
     lfm_pulse = tx(1, pos : pos + Ntau - 1);

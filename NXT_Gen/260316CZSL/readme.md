@@ -6,8 +6,8 @@ train = ['DFTJ', 'ISRJ', 'SMSPJ', 'AJ', 'BJ','SJ']
 test  = ['DFTJ', 'ISRJ', 'SMSPJ', 'AJ', 'BJ','SJ']
 val   = ['DFTJ', 'ISRJ', 'SMSPJ', 'AJ', 'BJ','SJ'+九种组合]
 
-样本个数:train 每个种类210个样本,test 90个,val 500个
-7:3:16.7的神秘比例
+样本个数:train 每个种类210个样本,val 90个,test 600个
+7:3:20的比例
 SNR = 15 dB，JNR = 0，10，20, 30，40, 50 dB
 HDF5‌ -v7.3保存
 xx_echo_label.mat 多热标签

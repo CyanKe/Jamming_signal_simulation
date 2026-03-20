@@ -11,7 +11,7 @@ labels = ones(data_num, numClasses) .* oneHotEncoded;
 
 for m = 1:data_num
     % 生成基础目标信号 (所有干扰类型共用)
-    params.pos = 500+randi([0 5000]);      %在PRI中第5000点处
+    params.pos = 500+randi([0 4000]);      %在PRI中第5000点处
     [tx, params] = generate_0base_signal(params);
     % --- 生成噪声 ---
     
@@ -111,10 +111,11 @@ for m = 1:data_num
     end
     % --- 混合信号 ---
     pure_echo = As * tx;
-    rx = pure_echo + sum_jam + white_noise;
+    random_phase = exp(rand*2*pi*1i);
+    rx = pure_echo * random_phase + sum_jam + white_noise;
 
     % --- 归一化 (防止梯度爆炸) ---
-    rx = rx / max(abs(rx));
+    % rx = rx / max(abs(rx));
     samples(m, :) = rx;
 end
 end

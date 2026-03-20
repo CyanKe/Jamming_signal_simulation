@@ -13,8 +13,6 @@ fs = params.fs;
 Np = params.Np;
 B = params.B;
 
-repetition_times_arr= [5,4,3,2];    %重复次数M
-sampling_times_arr = [4,3,2,1];     %采样次数N
 
 % 初始化输出
 % samples = zeros(data_num, N_total);
@@ -27,12 +25,19 @@ for m = 1:data_num
     % white_noise = white_noise / std(white_noise); % 标准化
 
     % --- 1. 从数组中随机选择ISRJ参数 ---
-    index1 = randi([1 4]);          % 随机选择周期 (索引1或2)
-    N = sampling_times_arr(index1);
+    %     repetition_times_arr= [4,3,2];    %重复次数M
+    % sampling_times_arr = [4,3,2];     %采样次数N
+    % index1 = randi([1 4]);          % 随机选择周期 (索引1或2)
+    % N = sampling_times_arr(index1);
+    % 
+    % index2 = randi([1 4]);      % 随机选择占空比 (索引1到4)
+    % M = repetition_times_arr(index2);
 
-    index2 = randi([1 4]);      % 随机选择占空比 (索引1到4)
-    M = repetition_times_arr(index2);
-    M = 4;N = 3;
+
+
+    M = randi([2 4]); 
+    N = randi([2 4]); 
+    % M = 4;N = 3;
 
     % --- 2. 生成采样方波并对LFM信号进行切片 ---
     % 使用与LFM脉冲相同的时间轴ttau来生成方波
@@ -59,16 +64,17 @@ for m = 1:data_num
         % if i~=1
             left_range = params.pos + i * delay_samp;
             right_range = left_range + Ntau - 1;
-
+            random_phase = exp(rand*2*pi*1i);
+            jam_slice = jam_slice*random_phase;
             % 检查是否超出当前PRI的范围，避免索引错误
             if right_range <= PRI_samp
-                jam_pri(left_range:right_range) = jam_pri(left_range:right_range) + Aj * jam_slice;
+                jam_pri(left_range:right_range) = jam_pri(left_range:right_range) + Aj * jam_slice*exp(rand*2*pi*1i);
             else
                 % 只要 lfm 的长度与目标区域的长度不一致，就取较小的那个长度
                 right_boundary = min(PRI_samp, left_range + length(lfm) - 1);
                 % 重新定义索引范围并赋值
                 jam_pri(left_range:right_boundary) = jam_pri(left_range:right_boundary) + ...
-                    Aj * jam_slice(1 : (right_boundary - left_range + 1));
+                    Aj * jam_slice(1 : (right_boundary - left_range + 1))*exp(rand*2*pi*1i);
             end
         % 计算bounding box
         % 时域范围

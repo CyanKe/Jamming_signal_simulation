@@ -21,7 +21,7 @@ for m = 1:data_num
     % white_noise = white_noise / std(white_noise); % 标准化
 
     % --- 1. 设置假目标参数 ---
-    k = randi([3, 7]);  % 随机产生3-6个假目标
+    k = randi([4, 8]);  % 随机产生4-8个假目标
 
     % --- 2. 创建一个PRI长度的干扰信号模板 ---
     % 我们首先在一个PRI内生成假目标，然后将其复制到所有PRI
@@ -35,11 +35,11 @@ for m = 1:data_num
     % --- 3. 循环生成每个假目标并放入模板 ---
     for i = 1:k
         % 随机延迟时间 (1-10us)，并转换为采样点数
-        delay_time = randi([2, 10])*1e-6 ;
+        delay_time = randi([4, 10])*1e-6 ;
         delay_samp = round(delay_time * fs);
         if i == 1
             % 第一个假目标相对于真实目标的位置
-            left_range = pos + delay_samp*m;
+            left_range = pos + delay_samp*i;
         else
             % 后续假目标相对于前一个假目标的位置
             left_range = last_pos + delay_samp;
@@ -53,7 +53,8 @@ for m = 1:data_num
         if left_range <= PRI_samp
             % 为每个假目标设置一个随机幅度 (0.5到1.5倍的Aj)
             % Aj_rand = Aj * (0.5 + rand());
-            lfm = tx(1, pos : pos + Ntau - 1);
+            random_phase = exp(rand*2*pi*1i);
+            lfm = tx(1, pos : pos + Ntau - 1)*random_phase;
             if right_range <= PRI_samp
                 jam_pri(left_range:right_range) = jam_pri(left_range:right_range) + Aj * lfm;
             else
@@ -77,7 +78,18 @@ for m = 1:data_num
 
     % 添加到bounding box列表
     bbox_info = [bbox_info; x_min, y_min, x_max, y_max];
-    pure_jam(m,:) = repmat(jam_pri, 1, Np);
+
+    % 复制到所有PRI
+    jam_signal = repmat(jam_pri, 1, Np);
+
+    % 【修正】功率归一化到目标JNR
+    actual_power = mean(abs(jam_signal).^2);  % 实际功率
+    target_power = Aj^2;                       % 目标功率
+    if actual_power > 0
+        jam_signal = jam_signal * sqrt(target_power / actual_power);
+    end
+
+    pure_jam(m,:) = jam_signal;
 
     % % --- 4. 将单个PRI的干扰模板复制到整个信号长度 ---
     % jam_signal = repmat(jam_pri, 1, Np);

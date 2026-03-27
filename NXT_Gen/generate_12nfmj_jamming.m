@@ -31,7 +31,7 @@ for m = 1:data_num
     % 关键：噪声的带宽直接影响最终干扰的频谱宽度。
     % 为了让结果更接近要求的 Bj，我们将噪声先滤波到一个特定带宽
     % 假设调制噪声的带宽为 N_bw (通常需要比目标干扰带宽窄一点，留出余量)
-    N_bw_factor = rand(1); % 调制噪声带宽系数 (0~1 之间)
+    N_bw_factor = 0.3 + 0.7 * rand(1); % 调制噪声带宽系数 (0.3~1.0)
     N_bw = Bj * N_bw_factor; 
     
     [b, a] = fir1(64, N_bw/fs, chebwin(65, 40));
@@ -49,13 +49,12 @@ for m = 1:data_num
     % 注意：如果 tx 本身是基带信号，我们可以直接加调制
     
     % 纯噪声调频信号 (基带解析形式)
-    fm_jam_base = Aj * exp(1j * 2 * pi * Kf * phase_control / fs); 
+    fm_jam_base = Aj * exp(1j * 2 * pi * Kf * phase_control / fs);
     % 注：将 cumsum 转换回时间域：integral(m(t)) ≈ cumsum(m) / fs
-    
-    % --- 5. 高频抖动/随机化 ---
-    % 为了防止信号过于规律，可以混入一点点原噪声，但这会轻微改变包络
-    % fm_jam_base = fm_jam_base .* (1 + 0.1 * white_noise); 
-    
+
+    % --- 5. 功率归一化 ---
+    fm_jam_base = fm_jam_base / std(fm_jam_base) * Aj;
+
     pure_jam(m,:) = fm_jam_base;
     
     % --- 可选：视觉检查生成的频谱 ---

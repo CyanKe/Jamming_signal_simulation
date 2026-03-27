@@ -5,7 +5,6 @@ function [pure_jam] = generate_9npj_jamming(tx, params, data_num)
 % 解包参数
 fs = params.fs;
 N_total = params.N_total;
-As = 10^(params.SNR/20);
 Aj = 10^(params.JNR/20);
 PRI_samp = params.PRI_samp;
 taup = params.taup;
@@ -39,11 +38,11 @@ for m = 1:data_num
     % --- 3. 在一个PRI内生成转发干扰串 ---
     % 我们首先在一个PRI内生成干扰，然后将其复制到所有PRI
     jam_pri = zeros(1, PRI_samp);
-    repetition_times = 10 + randi(5); % 转发5-10次
+    repetition_times = 1;%不要转发，这什么怪代码——转发5-10次——
 
     for i = 1:repetition_times
         % 设置每次转发的随机延迟
-        delay_time = (1 + rand() * 4) * 1e-7;
+        delay_time = (-2 + rand() * 4) * 1e-7;
         delay_samp = round(delay_time * fs);
 
         % 干扰切片的起始位置
@@ -59,14 +58,16 @@ for m = 1:data_num
         % 检查是否超出当前PRI的范围
         if right_range <= PRI_samp
             % --- NPJ核心操作 ---
-            % 从噪声源中取出一个片段
-            noise_segment = product_noise(left_range : right_range);
+            % 随机选择噪声片段的起始位置
+            noise_start = randi([1, PRI_samp - Ntau + 1]);
+            noise_segment = product_noise(noise_start : noise_start + Ntau - 1);
             % 将门控LFM与噪声片段进行逐元素相乘
-            npj_segment = gated_lfm .* noise_segment;
-            npj_segment = npj_segment./abs(max(npj_segment));
-
+            random_phase = exp(rand*2*pi*1i);
+            npj_segment = lfm .* noise_segment;
+            npj_segment = npj_segment./abs(max(npj_segment))*random_phase;
+           
             % 为每次转发设置一个随机幅度
-            Aj_rand = Aj * (0.9 + rand()*0.2);
+            Aj_rand = Aj ;%* (0.9 + rand()*0.2);
             jam_pri(left_range:right_range) = jam_pri(left_range:right_range) + Aj_rand * npj_segment;
         end
     end

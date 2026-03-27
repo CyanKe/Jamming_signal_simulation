@@ -11,17 +11,17 @@ params.taup = 20e-6;     % LFM 脉宽 20us
 params.Np = 1;           % 脉冲个数 1  ->只在单个 PRI 内测试
 params.PRI = 100e-6;     % 脉冲重复间隔 us
 params.SNR = 15;         % 信噪比
-JNR_values = 50;    % 干噪比范围 dB
+JNR_values = 15;    % 干噪比范围 dB
 params.numClasses = 16;    % 基础九种干扰
 SAMPLE_NUM_S = 2;
-SAMPLE_NUM_M = 2;
+SAMPLE_NUM_M = 1;
 params.pos = 1000+randi([0 6000]);      %在 PRI 中第 5000 点处
 
 % --- 2. 生成计划 ---
 generation_plan = {
     % 欺骗干扰
     % 'DFTJ' , 1,  SAMPLE_NUM_S;
-    'ISRJ' , 2,  SAMPLE_NUM_S;
+    % 'ISRJ' , 2,  SAMPLE_NUM_S;
     % 'SMSPJ', 10, SAMPLE_NUM_S;
     % 'C&IJ' , 11, SAMPLE_NUM_S;
     % 'CSJ'  , 15, SAMPLE_NUM_S;
@@ -36,6 +36,15 @@ generation_plan = {
     % 'NPMJ' , 13, SAMPLE_NUM_S;
     % 'NAMJ' , 14, SAMPLE_NUM_S;
     % 'PJ'   , 16, SAMPLE_NUM_S;
+    % 'DFTJ+AJ',  [1,5] , SAMPLE_NUM_M;
+    % 'DFTJ+BJ',  [1,6] , SAMPLE_NUM_M;
+    % 'DFTJ+SJ',  [1,7] , SAMPLE_NUM_M;
+    'DFTJ+NCJ', [1,8] , SAMPLE_NUM_M;
+    'DFTJ+NPJ', [1,9] , SAMPLE_NUM_M;
+    'DFTJ+NFMJ',[1,12] , SAMPLE_NUM_M;
+    'DFTJ+NPMJ',[1,13] , SAMPLE_NUM_M;
+    'DFTJ+NAMJ',[1,14] , SAMPLE_NUM_M;
+    'DFTJ+PJ',  [1,16] , SAMPLE_NUM_M;
     };
 
 % --- 3. 执行生成 ---
@@ -52,7 +61,7 @@ for current_jnr = JNR_values
     all_times = zeros(SAMPLE_NUM,params.PRI_samp);
     all_label = zeros(SAMPLE_NUM,params.numClasses);
     Nwin = 256; Noverlap = 240;
-    Step = Nwin - Noverlap; 
+    Step = Nwin - Noverlap;
     N_cols = floor((params.N_total - Noverlap) / Step);
     Nfft = 256;
     all_cwds = zeros(SAMPLE_NUM, Nfft, N_cols);  % CWD 结果 [频率，时间]
@@ -97,7 +106,8 @@ for current_jnr = JNR_values
         % [C,F,T] = CWD(all_times(i, 1:params.PRI_samp), params.fs, 1, 124, 64);
         % [W,T,F] = wvd(all_times(i, 1:params.PRI_samp), params.fs,"smoothedPseudo");
         [C,F,T] = choiwilliams(all_times(i,1:params.PRI_samp),Nwin,Noverlap,Nfft,params.fs, 'centered', 'Sigma', 0.5);
-        all_cwds(i,:,:) = C;
+        all_cwds(i,:,:) = single(C);
+        all_stfts(i,:,:) = single(S);
     end
 
     % STFT 输出路径 (保留原有)
@@ -117,10 +127,21 @@ for current_jnr = JNR_values
 end
 toc
 
-subplot(1,2,1);
-imagesc(T*1e6,F/1e6,abs(C));
-xlabel('Time/μs'); ylabel('Frequency/MHz');
+figure(1)
+for i = 1:SAMPLE_NUM
+    subplot(2,SAMPLE_NUM,i)
+    imagesc(T*1e6, F/1e6, abs((squeeze(all_cwds(i,:,:)))) + eps);
+    % colormap(turbo)
+    axis xy;
+    xlabel('时间 (us)');
+    ylabel('频率 (MHz)');
+    grid on;
 
-subplot(1,2,2);
-imagesc(T*1e6,F/1e6,abs(S));
-xlabel('Time/μs'); ylabel('Frequency/MHz');
+    subplot(2,SAMPLE_NUM,SAMPLE_NUM+i)
+    imagesc(T*1e6, F/1e6, abs((squeeze(all_stfts(i,:,:)))) + eps);
+    % colormap(turbo)
+    axis xy;
+    xlabel('时间 (us)');
+    ylabel('频率 (MHz)');
+    grid on;
+end

@@ -46,19 +46,19 @@ for m = 1:data_num
             case 5
                 jam_params = params;
                 jam_params.JNR = current_jnr; % 瞄准干扰通常功率更集中
-                jam_params.BJ = 20e6;         % 干扰带宽 20MHz
+                jam_params.BJ = (18.5+5*rand)*1e6;         % 干扰带宽 20MHz
                 [pure_jam] = generate_5ab_jamming(tx, jam_params, 1);
 
             case 6
                 jam_params = params;
                 jam_params.JNR = current_jnr; % 阻塞干扰
-                jam_params.BJ = 45e6;         % 干扰带宽 45MHz
+                jam_params.BJ = (45+10*rand)*1e6;         % 干扰带宽 45MHz
                 [pure_jam] = generate_5ab_jamming(tx, jam_params, 1);
 
             case 7
                 jam_params = params;
                 jam_params.JNR = current_jnr;  % 扫频干扰
-                jam_params.BJ = 10e6;          % 干扰带宽 5MHz
+                jam_params.BJ = (10+20*rand)*1e6;          % 干扰带宽 5MHz
                 [pure_jam] = generate_7sj_jamming(tx, jam_params, 1);
 
             case 8
@@ -83,13 +83,13 @@ for m = 1:data_num
             case 12
                 jam_params = params;
                 jam_params.JNR = current_jnr; % 噪声调频干扰
-                jam_params.BJ = 40e6;         % 干扰带宽 20MHz
+                jam_params.BJ = 40e6;         % 干扰带宽 40MHz
                 % jam_params.Kf = 1;
                 [pure_jam] = generate_12nfmj_jamming(tx, jam_params, 1);
             case 13
                 jam_params = params;
                 jam_params.JNR = current_jnr; % 噪声调相干扰
-                jam_params.BJ = (35+5*randn)*1e6;         % 干扰带宽 20MHz
+                jam_params.BJ = max(10e6, (35+5*randn)*1e6);  % 干扰带宽，保证正值
                 % jam_params.Kf = 1;
                 [pure_jam] = generate_13npmj_jammingr(tx, jam_params, 1);
             case 14

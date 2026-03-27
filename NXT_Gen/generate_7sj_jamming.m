@@ -21,7 +21,7 @@ for m = 1:data_num
 
     % --- 生成扫频干扰 ---
     T_sweep=20*1e-6+round((rand(1,1)*20))*1e-6;%扫频周期20-40us
-    B1 = 8*Bj;
+    B1 = 80e6;                 % 设置为80MHz
     f0 = -B1/2;                % 起始频率（相对基带）
     K = B1 / T_sweep;          % 调频斜率
     tj = (0:N_total-1)/fs;     % 时间轴

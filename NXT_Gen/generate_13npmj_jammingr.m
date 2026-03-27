@@ -18,7 +18,7 @@ function [pure_jam] = generate_13npmj_jammingr(tx, params, data_num)
     end
     
     % 是否启用随机 Kp (0: 固定, 1: 随机跳变, 2: 连续慢变)
-    Kp_variation_mode = 1; 
+    Kp_variation_mode = 0; 
     
     % --- 增强点 2: 噪声分布选择 ---
     % 0: 标准高斯, 1: 重尾分布 (混合高斯模拟脉冲)
@@ -85,11 +85,14 @@ function [pure_jam] = generate_13npmj_jammingr(tx, params, data_num)
         
         % 基带信号生成
         jam_base = Aj * exp(1j * phase_arg);
-        
+
         % 叠加微小幅度随机化 (打破恒包络特性，增加对抗性)
-        amplitude_perturbation = 1 + 0.05 * randn([1, N_total]); 
+        amplitude_perturbation = 1 + 0.05 * randn([1, N_total]);
         jam_base = jam_base .* abs(amplitude_perturbation);
-        
+
+        % --- 功率归一化 ---
+        jam_base = jam_base / std(jam_base) * Aj;
+
         pure_jam(m,:) = jam_base;
     end
 end

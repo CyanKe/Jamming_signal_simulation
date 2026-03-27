@@ -2,6 +2,8 @@
 % main_generator.m - 主数据生成脚本
 % ==========================================================
 clear; clc; close all;
+load("Londres.mat");
+load("promenade.mat");
 tic
 % --- 1. 公共参数设置 ---
 params.fs = 80e6;        % 采样频率 100MHz
@@ -10,23 +12,23 @@ params.B = 10e6;         % 带宽    10MHz
 params.taup = 20e-6;     % LFM脉宽 20us
 params.Np = 1;           % 脉冲个数 1  ->只在单个PRI内测试
 params.PRI = 100e-6;     % 脉冲重复间隔 us
-params.SNR = 15;         % 信噪比
+params.SNR = -5;         % 信噪比
 % params.JNR = 15;         % 干噪比 (可以为不同干扰类型单独设置)
 % JNR_values = 0:5:40;    %干噪比范围 dB
-JNR_values = 15;    % 干噪比范围 dB
-params.numClasses = 16;    % 基础九种干扰
-SAMPLE_NUM_S = 1;
-SAMPLE_NUM_M = 2;
+JNR_values = 25;    % 干噪比范围 dB
+params.numClasses = 16;    % 基础16种干扰
+SAMPLE_NUM_S = 4*2;
+SAMPLE_NUM_M = 4;
 params.pos = 5000;      %在PRI中第5000点处
 % --- 2. 生成计划 ---
 % 定义要生成的干扰类型和对应的标签
 generation_plan = {
     % 欺骗干扰
-    'DFTJ' , 1,  SAMPLE_NUM_S;
-    'ISRJ' , 2,  SAMPLE_NUM_S;
-    'SMSPJ', 10, SAMPLE_NUM_S;
-    'C&IJ' , 11, SAMPLE_NUM_S;
-    'CSJ'  , 15, SAMPLE_NUM_S;
+    % 'DFTJ' , 1,  SAMPLE_NUM_S;
+    % 'ISRJ' , 2,  SAMPLE_NUM_S;
+    % 'SMSPJ', 10, SAMPLE_NUM_S;
+    % 'C&IJ' , 11, SAMPLE_NUM_S;
+    % 'CSJ'  , 15, SAMPLE_NUM_S;
     % 'RGPO' , 3,  SAMPLE_NUM;
     % 'VGPO' , 4,  SAMPLE_NUM;
 
@@ -37,8 +39,8 @@ generation_plan = {
     % 'NCJ'  , 8, SAMPLE_NUM_S;
     % 'NPJ'  , 9, SAMPLE_NUM_S;
     % 'NFMJ' , 12, SAMPLE_NUM_S;
-    % 'NPMJ' , 13, SAMPLE_NUM_S;
-    % 'NAMJ' , 14, SAMPLE_NUM_S;
+    'NPMJ' , 13, SAMPLE_NUM_S;
+    'NAMJ' , 14, SAMPLE_NUM_S;
     % 'PJ'   , 16, SAMPLE_NUM_S;
 
     % 在这里添加更多类型，例如 'sweep', 3, 200
@@ -129,7 +131,7 @@ for current_jnr = JNR_values
         current_datetime = datetime('now', 'Format', 'yyMMdd');
         % 转换为字符串
         time_str = char(current_datetime);
-        time_str = '260316CZSL';
+        % time_str = '260316CZSL';
         % 构建目录路径
         snr_output_dir = fullfile(time_str, sprintf('JNR_%+d', current_jnr));
 
@@ -151,22 +153,23 @@ for current_jnr = JNR_values
     end
     for i = 1:SAMPLE_NUM
         [S,F,T] = spectrogram(all_times(i,1:params.PRI_samp),Nwin,Noverlap,Nfft,params.fs, 'centered');
-        all_stfts(i,:,:) = single(S);
+        all_stfts(i,:,:) = S;
     end
     
     % path_stfts = fullfile(snr_output_dir, 'train_echo_stfts.mat');
     % path_times = fullfile(snr_output_dir, 'train_echo_times.mat');
     % path_label = fullfile(snr_output_dir, 'train_echo_label.mat');
 
-    % path_stfts = fullfile(snr_output_dir, 'test_echo_stfts.mat');
-    % path_times = fullfile(snr_output_dir, 'test_echo_times.mat');
-    % path_label = fullfile(snr_output_dir, 'test_echo_label.mat');
-    % 
-    path_stfts = fullfile(snr_output_dir, 'val_echo_stfts.mat');
-    path_times = fullfile(snr_output_dir, 'val_echo_times.mat');
-    path_label = fullfile(snr_output_dir, 'val_echo_label.mat');
+    % path_stfts = fullfile(snr_output_dir, 'val_echo_stfts.mat');
+    % path_times = fullfile(snr_output_dir, 'val_echo_times.mat');
+    % path_label = fullfile(snr_output_dir, 'val_echo_label.mat');
+
+    path_stfts = fullfile(snr_output_dir, 'test_echo_stfts.mat');
+    path_times = fullfile(snr_output_dir, 'test_echo_times.mat');
+    path_label = fullfile(snr_output_dir, 'test_echo_label.mat');
 
     all_stfts = single(all_stfts);
+    all_times = single(all_times);
     save(path_stfts, 'all_stfts', '-v7.3');
     save(path_times, 'all_times', '-v7.3');
     save(path_label, 'all_label', '-v7.3');
@@ -175,22 +178,24 @@ for current_jnr = JNR_values
 end
 toc
 
-figure(1)
-for i = 1:SAMPLE_NUM
-    subplot(2,SAMPLE_NUM,i)
+split_num = round(SAMPLE_NUM/4);
+for j = 0:split_num-1
+figure(j+1)
+for i = 1:4
+    subplot(2,4,i)
     t_axis = params.t_total;% 时间轴 us
-    plot(t_axis, real(all_times(i,:)));
+    plot(t_axis, real(all_times(4*j+i,:)));
     xlabel('时间 (us)');
     ylabel('幅度');
     grid on;
-    
-    subplot(2,SAMPLE_NUM,SAMPLE_NUM+i)
-    imagesc(T*1e6, F/1e6, abs((squeeze(all_stfts(i,:,:)))) + eps);
-    % colormap(turbo)
+
+    subplot(2,4,4+i)
+    imagesc(T*1e6, F/1e6, abs((squeeze(all_stfts(4*j+i,:,:)))) + eps);
+    % colormap(Londres)
     axis xy;
     xlabel('时间 (us)');
     ylabel('频率 (MHz)');
     grid on;
 
-
+end
 end

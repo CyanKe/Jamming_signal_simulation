@@ -2,17 +2,25 @@
 
 ## 欺骗+压制+组合3+3+9
 
+![alt text](Figure_1.png)
+![alt text](Figure_2.png)
+![alt text](Figure_3.png)
+
 train = ['DFTJ', 'ISRJ', 'SMSPJ', 'AJ', 'BJ','SJ']
-test  = ['DFTJ', 'ISRJ', 'SMSPJ', 'AJ', 'BJ','SJ']
-val   = ['DFTJ', 'ISRJ', 'SMSPJ', 'AJ', 'BJ','SJ'+九种组合]
+val  = ['DFTJ', 'ISRJ', 'SMSPJ', 'AJ', 'BJ','SJ']
+test   = ['DFTJ', 'ISRJ', 'SMSPJ', 'AJ', 'BJ','SJ'+九种组合]
+
+设定为主瓣干扰，
 
 样本个数:train 每个种类210个样本,val 90个,test 600个
 7:3:20的比例
 SNR = 15 dB，JNR = 0，10，20, 30，40, 50 dB
+(目标信噪比是否需要一定的变化?)
+
 HDF5‌ -v7.3保存
 xx_echo_label.mat 多热标签
-xx_echo_stfts.mat 时频域数据 每张图大小为124x64，complex double
-xx_echo_times.mat 时域数据 每段回波长度为1x8000，complex double
+xx_echo_stfts.mat 时频域数据 每张图大小为124x64，complex single
+xx_echo_times.mat 时域数据 每段回波长度为1x8000，complex single
 
 self.classes = [
     'DFTJ',         # 密集假目标干扰

@@ -113,6 +113,9 @@ function [pure_jam] = generate_14namj_jammingr(tx, params, data_num)
             fm_jam_base = fm_jam_base + tone_amp * exp(1j * 2 * pi * tone_freq * t);
         end
 
+        % --- 功率归一化 ---
+        fm_jam_base = fm_jam_base / std(fm_jam_base) * Aj;
+
         pure_jam(m,:) = fm_jam_base;
     end
 end

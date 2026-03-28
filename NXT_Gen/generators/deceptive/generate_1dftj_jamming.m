@@ -1,4 +1,9 @@
-function [pure_jam,bbox_info] = generate_1dftj_jamming(tx, params, data_num)
+function [pure_jam,bbox_info,jam_info] = generate_1dftj_jamming(tx, params, data_num)
+% generate_1dftj_jamming - 生成密集假目标干扰
+% 输出:
+%   pure_jam - 干扰信号
+%   bbox_info - 边界框信息
+%   jam_info - 干扰参数信息 (新增，用于metadata记录)
 
 % 解包参数
 fs = params.fs;
@@ -15,6 +20,8 @@ B = params.B;
 % samples = zeros(data_num, N_total);
 % labels = ones(data_num, 1) * label;
 pure_jam = zeros(data_num, N_total);
+jam_info = struct('k', {}, 'delay_times', {});  % 新增：记录参数信息
+
 for m = 1:data_num
     % --- 生成噪声 ---
     % white_noise = randn([1,N_total]) + 1j*randn([1,N_total]);
@@ -22,6 +29,7 @@ for m = 1:data_num
 
     % --- 1. 设置假目标参数 ---
     k = randi([4, 8]);  % 随机产生4-8个假目标
+    delay_times = zeros(1, k);  % 记录每个假目标的延迟时间
 
     % --- 2. 创建一个PRI长度的干扰信号模板 ---
     % 我们首先在一个PRI内生成假目标，然后将其复制到所有PRI
@@ -36,6 +44,7 @@ for m = 1:data_num
     for i = 1:k
         % 随机延迟时间 (1-10us)，并转换为采样点数
         delay_time = randi([4, 10])*1e-6 ;
+        delay_times(i) = delay_time;  % 记录延迟时间
         delay_samp = round(delay_time * fs);
         if i == 1
             % 第一个假目标相对于真实目标的位置
@@ -90,6 +99,10 @@ for m = 1:data_num
     end
 
     pure_jam(m,:) = jam_signal;
+
+    % 记录当前样本的参数信息
+    jam_info(m).k = k;
+    jam_info(m).delay_times = delay_times;  % 单位：秒
 
     % % --- 4. 将单个PRI的干扰模板复制到整个信号长度 ---
     % jam_signal = repmat(jam_pri, 1, Np);

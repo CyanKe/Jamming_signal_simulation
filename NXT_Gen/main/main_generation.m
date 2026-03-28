@@ -2,8 +2,17 @@
 % main_generator.m - 主数据生成脚本
 % ==========================================================
 clear; clc; close all;
-load("Londres.mat");
-load("promenade.mat");
+
+% 添加路径
+script_path = fileparts(mfilename('fullpath'));
+root_path = fileparts(script_path);
+addpath(fullfile(root_path, 'generators', 'base'));
+addpath(fullfile(root_path, 'generators', 'deceptive'));
+addpath(fullfile(root_path, 'generators', 'suppressive'));
+addpath(fullfile(root_path, 'utils'));
+
+% load("Londres.mat");
+% load("promenade.mat");
 tic
 % --- 1. 公共参数设置 ---
 params.fs = 80e6;        % 采样频率 100MHz
@@ -15,9 +24,9 @@ params.PRI = 100e-6;     % 脉冲重复间隔 us
 params.SNR = -5;         % 信噪比
 % params.JNR = 15;         % 干噪比 (可以为不同干扰类型单独设置)
 % JNR_values = 0:5:40;    %干噪比范围 dB
-JNR_values = 25;    % 干噪比范围 dB
+JNR_values = 0;    % 干噪比范围 dB
 params.numClasses = 16;    % 基础16种干扰
-SAMPLE_NUM_S = 4*2;
+SAMPLE_NUM_S = 4;
 SAMPLE_NUM_M = 4;
 params.pos = 5000;      %在PRI中第5000点处
 % --- 2. 生成计划 ---
@@ -29,8 +38,8 @@ generation_plan = {
     % 'SMSPJ', 10, SAMPLE_NUM_S;
     % 'C&IJ' , 11, SAMPLE_NUM_S;
     % 'CSJ'  , 15, SAMPLE_NUM_S;
-    % 'RGPO' , 3,  SAMPLE_NUM;
-    % 'VGPO' , 4,  SAMPLE_NUM;
+    'RGPOJ' , 3,  SAMPLE_NUM_S;
+    'VGPOJ' , 4,  SAMPLE_NUM_S;
 
     % 压制干扰
     % 'AJ'   , 5, SAMPLE_NUM_S;
@@ -39,11 +48,14 @@ generation_plan = {
     % 'NCJ'  , 8, SAMPLE_NUM_S;
     % 'NPJ'  , 9, SAMPLE_NUM_S;
     % 'NFMJ' , 12, SAMPLE_NUM_S;
-    'NPMJ' , 13, SAMPLE_NUM_S;
-    'NAMJ' , 14, SAMPLE_NUM_S;
+    % 'NPMJ' , 13, SAMPLE_NUM_S;
+    % 'NAMJ' , 14, SAMPLE_NUM_S;
     % 'PJ'   , 16, SAMPLE_NUM_S;
 
     % 在这里添加更多类型，例如 'sweep', 3, 200
+
+    % 'RGPO+AJ',  [3,5] , SAMPLE_NUM_M;
+    % 'VGPO+AJ',  [4,5] , SAMPLE_NUM_M;
 
     % 'DFTJ+AJ',  [1,5] , SAMPLE_NUM_M;
     % 'DFTJ+BJ',  [1,6] , SAMPLE_NUM_M;
@@ -112,10 +124,14 @@ for current_jnr = JNR_values
     all_times = zeros(SAMPLE_NUM,params.PRI_samp);
     all_label = zeros(SAMPLE_NUM,params.numClasses);
     Nwin = 128; Noverlap = 93;
-    Step = Nwin - Noverlap; 
+    Step = Nwin - Noverlap;
     N_cols = floor((params.N_total - Noverlap) / Step);
     Nfft = 224;
     all_stfts = zeros(SAMPLE_NUM,Nfft,N_cols);
+
+    % 初始化metadata数组
+    all_metadata = struct('sample_idx', {}, 'jam_types', {}, 'JNR', {}, 'pos', {}, 'jam_params', {});
+
     point_l = 1;
     for i = 1:len
         % 生成基础目标信号 (所有干扰类型共用)
@@ -133,7 +149,8 @@ for current_jnr = JNR_values
         time_str = char(current_datetime);
         % time_str = '260316CZSL';
         % 构建目录路径
-        snr_output_dir = fullfile(time_str, sprintf('JNR_%+d', current_jnr));
+        output_dir = fullfile(root_path, 'output', time_str);
+        snr_output_dir = fullfile(output_dir, sprintf('JNR_%+d', current_jnr));
 
         if ~exist(snr_output_dir, 'dir')
             mkdir(snr_output_dir);
@@ -141,13 +158,14 @@ for current_jnr = JNR_values
         % fprintf('Generating data for JNR = %d dB...\n', current_jnr);
         %%% jam_type,params,current_jnr,all_labels
 
-        [new_times, new_label] = multi_generation(label,params,current_jnr,num_to_generate);
+        [new_times, new_label, new_metadata] = multi_generation(label,params,current_jnr,num_to_generate);
         if i ~= 1
             point_l = point_r + 1;
         end
         point_r = point_l + num_to_generate-1;
         all_times(point_l:point_r,:) = new_times;
         all_label(point_l:point_r,:) = new_label;
+        all_metadata(point_l:point_r) = new_metadata;  % 记录metadata
 
         % 追加到总数据集中
     end
@@ -174,7 +192,12 @@ for current_jnr = JNR_values
     save(path_times, 'all_times', '-v7.3');
     save(path_label, 'all_label', '-v7.3');
 
-    
+    % 保存metadata
+    path_metadata = fullfile(snr_output_dir, 'test_echo_metadata.mat');
+    save(path_metadata, 'all_metadata', '-v7.3');
+    fprintf('Saved metadata to: %s\n', path_metadata);
+
+
 end
 toc
 

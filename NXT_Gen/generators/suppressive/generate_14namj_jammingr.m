@@ -48,8 +48,8 @@ function [pure_jam] = generate_14namj_jammingr(tx, params, data_num)
 
     for m = 1:data_num
         % --- 3. 生成带随机特性的调制噪声 ---
-        white_noise_real = randn([1, N_total]);
-        white_noise_real = white_noise_real / std(white_noise_real);
+        white_noise = randn([1,N_total]);
+        white_noise = white_noise / std(white_noise);
         
         % 随机化带宽 (可选)
         if isfield(params, 'random_BW') && params.random_BW
@@ -64,10 +64,10 @@ function [pure_jam] = generate_14namj_jammingr(tx, params, data_num)
         if N_bw < fs/2
             % 使用 fir1 + chebwin 滤波
             [b, a] = fir1(64, N_bw/fs, chebwin(65, 40));
-            mod_signal = filter(b, a, white_noise_real);
+            mod_signal = filter(b, a, white_noise);
             mod_signal = mod_signal / std(mod_signal); % 重新归一化
         else
-            mod_signal = white_noise_real;
+            mod_signal = white_noise;
         end
 
         % --- 4. 随机包络修饰 (Random Envelope Shaping) ---
@@ -105,13 +105,13 @@ function [pure_jam] = generate_14namj_jammingr(tx, params, data_num)
         % 合成
         fm_jam_base = Aj * amp_env .* carrier;
 
-        % --- 可选：混合干扰 (Compound Jamming) ---
-        % 如果开启，叠加一个微弱的单频干扰，增加一点点"分量"
-        if isfield(params, 'mix_tone') && params.mix_tone
-            tone_amp = Aj * 0.1; % 干扰幅度的10%
-            tone_freq = Fj + 0.1 * fs; % 偏移一点频率
-            fm_jam_base = fm_jam_base + tone_amp * exp(1j * 2 * pi * tone_freq * t);
-        end
+        % % --- 可选：混合干扰 (Compound Jamming) ---
+        % % 如果开启，叠加一个微弱的单频干扰，增加一点点"分量"
+        % if isfield(params, 'mix_tone') && params.mix_tone
+        %     tone_amp = Aj * 0.1; % 干扰幅度的10%
+        %     tone_freq = Fj + 0.1 * fs; % 偏移一点频率
+        %     fm_jam_base = fm_jam_base + tone_amp * exp(1j * 2 * pi * tone_freq * t);
+        % end
 
         % --- 功率归一化 ---
         fm_jam_base = fm_jam_base / std(fm_jam_base) * Aj;

@@ -40,7 +40,7 @@ for m = 1:data_num
     % --- 1. 生成基带调制噪声 ---
     % 生成复高斯白噪声
     white_noise = randn([1,N_total]) + 1j*randn([1,N_total]);
-    white_noise = white_noise / std(real(white_noise)); % 标准化
+    white_noise = white_noise / std(white_noise); % 标准化
     
     % --- 2. 滤波以控制噪声带宽 ---
     % 噪声的带宽直接影响最终调相信号的频谱形状

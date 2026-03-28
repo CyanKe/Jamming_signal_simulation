@@ -1,7 +1,10 @@
-% ==========================================================
-% generate_spot_jamming.m - 生成瞄准式干扰样本
-% ==========================================================
-function [pure_jam,bbox_info] = generate_2isrj_jamming(tx, params, data_num)
+function [pure_jam,bbox_info,jam_info] = generate_2isrj_jamming(tx, params, data_num)
+% generate_2isrj_jamming - 生成间歇采样转发干扰
+% 输出:
+%   pure_jam - 干扰信号
+%   bbox_info - 边界框信息
+%   jam_info - 干扰参数信息 (新增，用于metadata记录)
+
 % 解包参数
 PRI_samp = params.PRI_samp;
 N_total = params.N_total;
@@ -18,6 +21,7 @@ B = params.B;
 % samples = zeros(data_num, N_total);
 % labels = ones(data_num, 1) * label;
 pure_jam = zeros(data_num, N_total);
+jam_info = struct('M', {}, 'N', {});  % 新增：记录ISRJ参数
 
 for m = 1:data_num
     % % --- 生成噪声 ---
@@ -93,6 +97,10 @@ for m = 1:data_num
     % 添加到bounding box列表
     bbox_info = [bbox_info; x_min, y_min, x_max, y_max];
     pure_jam(m,:) = repmat(jam_pri, 1, Np);
+
+    % 记录当前样本的参数信息
+    jam_info(m).M = M;  % 转发次数
+    jam_info(m).N = N;  % 采样次数
 
     % % --- 4. 将单个PRI的干扰模板复制到整个信号长度 ---
     % jam_signal = repmat(jam_pri, 1, Np);

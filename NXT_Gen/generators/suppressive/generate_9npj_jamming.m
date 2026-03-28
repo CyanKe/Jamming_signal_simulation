@@ -18,22 +18,13 @@ Np = params.Np;
 pure_jam = zeros(data_num, N_total);
 for m = 1:data_num
 
-
     % --- 1. 生成用于乘积的噪声源 ---
     % 这个噪声是干扰机内部产生的，用于调制干扰信号
     product_noise = randn([1, PRI_samp]) + 1j*randn([1, PRI_samp]);
     product_noise = product_noise / std(product_noise);
 
-    % --- 2. 创建门控LFM信号 (与ISRJ/NCJ类似) ---
-    % 设置间歇采样的随机参数
-    sampling_period = taup / (5 + randi(10)); % 采样周期
-    sampling_duty = 20 + randi(30);           % 占空比
-
-    % 生成单极性方波门控信号
-    jam_gate = (square((1/sampling_period)*2*pi*ttau, sampling_duty) + 1) / 2;
-    % 将LFM信号与门控相乘，得到被切片的LFM
+    % --- 2. 将LFM信号与门控相乘，得到被切片的LFM ---
     lfm = tx(1,params.pos:params.pos+params.Ntau-1);
-    gated_lfm = lfm .* jam_gate;
 
     % --- 3. 在一个PRI内生成转发干扰串 ---
     % 我们首先在一个PRI内生成干扰，然后将其复制到所有PRI

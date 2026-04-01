@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(mv generate_jam_type_samples.m main/)",
-      "Bash(mv process_rdm.m process_rdm_with_keystone.m untitled.m utils/)"
-    ]
-  }
-}

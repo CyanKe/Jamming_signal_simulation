@@ -3,11 +3,12 @@
 # 忽略所有 .mat 数据文件
 *.mat
 # 忽略常见的系统或临时文件
-.claude      # claude
-.DS_Store    # macOS
-Thumbs.db    # Windows
+.DS_Store    
+# macOS
+Thumbs.db   
+ # Windows
 *.log
 *.tmp
 *.txt
-
 **/config.m
+.claude/

@@ -10,4 +10,4 @@ Thumbs.db    # Windows
 *.tmp
 *.txt
 
-config.m
+**/config.m

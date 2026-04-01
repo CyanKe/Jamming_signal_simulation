@@ -1,0 +1,81 @@
+% ==========================================================
+% Comb Spectrum Jamming (CSJ) generator (已修正)
+% 梳状谱干扰：LFM × comb
+% ==========================================================
+function [pure_jam, jam_info] = generate_15csj_jamming(tx, params, data_num)
+% generate_15csj_jamming - 生成梳状谱干扰
+% 输出:
+%   pure_jam - 干扰信号
+%   jam_info - 干扰参数信息 (用于metadata记录)
+%
+% CSJ特点：STFT图表现为密集梳齿状的斜线
+
+% 解包参数
+B       = params.B;
+taup    = params.taup;          % LFM 脉宽 (s)
+Np      = params.Np;            % PRI 个数
+PRI     = params.PRI;           % PRI 时间 (s)
+PRI_samp= params.PRI_samp;      % PRI 采样点
+Ntau    = params.Ntau;          % LFM 点数
+pos     = params.pos;           % LFM 在 PRI 中的位置
+N_total = params.N_total;
+
+% 干扰幅度系数
+Aj = 10^(params.JNR/20);
+
+% 输出
+pure_jam = zeros(data_num, N_total);
+jam_info = struct('M', {}, 'Q', {}, 'comb_teeth_count', {});  % 梳齿参数
+
+% 时间轴（LFM脉内）
+t_pulse = params.ttau;
+
+% 循环生成样本
+for m = 1:data_num
+
+    % ---------- 1. 梳状谱参数（可随机） ----------
+    M = randi([3, 8]);              % 梳齿数
+    Q = 0.05 + 0.05 * rand();       % 频率间隔系数
+    P = 0.5  + 0.5  * rand();       % 幅度系数基准
+    
+    % 【修正】每个梳齿独立随机权重
+    ak = P * (0.5 + 0.5 * rand(1, M));  % K个独立权重
+
+    % ---------- 2. 生成梳状谱信号 ----------
+    comb_pulse = zeros(1, Ntau);
+
+    for k = 1:M
+        delta_f = Q * B;   % 频率间隔
+        fk = (k - (M+1)/2) * delta_f;  % 关于零频率对称
+
+        % 使用每个梳齿的独立权重 ak(k)
+        comb_pulse = comb_pulse + ak(k) * exp(1j * 2*pi*fk * real(t_pulse));
+    end
+
+    % 【修正】归一化梳状谱功率，使总功率为1
+    comb_power = sum(ak.^2);  % 理论功率 = sum(ak^2)
+    comb_pulse = comb_pulse / sqrt(comb_power);
+
+    % ---------- 3. 被干扰的 LFM ----------
+    lfm_pulse = tx(1, pos : pos + Ntau - 1);
+    jammed_lfm = lfm_pulse .* comb_pulse;
+
+    % ---------- 4. 构造 PRI 内干扰模板 ----------
+    jam_pri = zeros(1, PRI_samp);
+    right_pos = pos + Ntau - 1;
+    random_phase = exp(1j * 2*pi * rand());  % 随机初始相位
+    
+    if right_pos <= PRI_samp
+        jam_pri(pos:right_pos) = Aj * jammed_lfm * random_phase;
+    end
+
+    % ---------- 6. 记录梳状谱参数信息 ----------
+    jam_info(m).M = M;                    % 梳齿数
+    jam_info(m).Q = Q;                    % 频率间隔系数
+    jam_info(m).comb_teeth_count = M;     % 梳齿数量（用于描述）
+
+    % ---------- 7. 复制到整个信号 ----------
+    pure_jam(m, :) = repmat(jam_pri, 1, Np);
+
+end
+end

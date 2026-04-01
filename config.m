@@ -46,8 +46,8 @@ function cfg = config()
 
     % NAMJ (噪声调幅干扰)
     cfg.jamming.namj.BJ_range = [15, 15];    % 干扰带宽范围 MHz
-    cfg.jamming.namj.random_Fj = true;123
-1111
+    cfg.jamming.namj.random_Fj = true;
+
     % ==================== 样本生成参数 ====================
     cfg.generation.SAMPLE_NUM_S = 20;   % 单一干扰样本数
     cfg.generation.SAMPLE_NUM_M = 20;  % 混合干扰样本数

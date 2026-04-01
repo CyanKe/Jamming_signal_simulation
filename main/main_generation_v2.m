@@ -15,7 +15,7 @@ addpath(fullfile(root_path, 'utils'));
 tic
 
 % --- 1. 加载配置 ---
-cfg = config();
+cfg = config(); % 需要根据具体使用配置修改
 params = config_to_params(cfg);
 
 % --- 2. 执行生成 ---

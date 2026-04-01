@@ -9,3 +9,5 @@ Thumbs.db    # Windows
 *.log
 *.tmp
 *.txt
+
+config.m

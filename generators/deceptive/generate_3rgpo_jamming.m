@@ -24,6 +24,12 @@ initial_delay_s = 0;
 % 例如：2000 m/s 的拖引速度 -> 时间变化率 = 2*2000/c ≈ 1.33e-5 s/s
 v = params.v;
 pull_off_rate_sps = v*2/3e8;% 1.5e-5;
+% 起始时间 (秒)，与 Np 解耦，直接指定干扰信号的起始时间点
+if isfield(params, 'start_time')
+    start_time = params.start_time;
+else
+    start_time = 0;  % 默认从 0 开始
+end
 % 初始化输出
 % samples = zeros(data_num, N_total);
 % labels = ones(data_num, 1) * label;
@@ -47,8 +53,8 @@ for m = 1:data_num
         pri_end_idx = (p + 1) * PRI_samp;
 
         % --- 2. 计算当前时刻的总延迟 ---
-        % 当前时间 = p * (PRI时长)
-        current_time_s = p * (PRI_samp / fs);
+        % 当前时间 = start_time + p * (PRI 时长)，与 PRI_samp 解耦
+        current_time_s = start_time + p * (PRI_samp / fs);
         % 当前总延迟 = 初始延迟 + 拖引速率 * 当前时间
         current_delay_s = initial_delay_s + pull_off_rate_sps * current_time_s;
         % 将延迟时间转换为采样点数
@@ -85,7 +91,7 @@ for m = 1:data_num
     end
 
     % 计算最终延迟和位置关系
-    final_delay_s = initial_delay_s + pull_off_rate_sps * ((Np-1) * PRI_samp / fs);
+    final_delay_s = initial_delay_s + pull_off_rate_sps * (start_time + (Np-1) * PRI_samp / fs);
     final_delay_us = final_delay_s * 1e6;  % 转换为微秒
 
     % 判断假目标相对于真实目标的位置关系
@@ -101,6 +107,7 @@ for m = 1:data_num
     jam_info(m).v = v;                    % 拖引速率 m/s
     jam_info(m).position_relation = position_relation;  % 位置关系
     jam_info(m).final_delay_us = final_delay_us;        % 最终延迟时间(微秒)
+    jam_info(m).start_time = start_time;                % 起始时间 (s)
 
     pure_jam(m,:) = jam_signal;
     % % --- 混合信号 ---

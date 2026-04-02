@@ -8,6 +8,13 @@ function [pure_jam, jam_info] = generate_4vgpo_jamming(tx, params, data_num)
 % 输出:
 %   pure_jam - 干扰信号
 %   jam_info - 干扰参数信息 (用于metadata记录)
+%
+% 可控参数 (通过params传递):
+%   fd_rate     - 多普勒频率拖引率 (Hz/s)，默认 10kHz/s
+%   start_time  - 起始时间 (s)，控制信号所属阶段，默认 0
+%                 - start_time < 2ms: 捕获阶段
+%                 - 2ms <= start_time < 12ms: 拖引阶段
+%                 - start_time >= 12ms: 停止阶段
 
 % 解包参数
 fs = params.fs;             % 采样率
@@ -20,10 +27,24 @@ real_pos_in_pri = params.pos; % 真实目标在PRI内的起始位置
 
 % --- VGPO拖引参数 ---
 % 多普勒频率拖引率 (Hz/s)，假目标的多普勒频率每秒变化量
+% 支持 fd_rate 或 pull 参数名
 if isfield(params, 'fd_rate')
     fd_rate = params.fd_rate;
+elseif isfield(params, 'pull')
+    fd_rate = params.pull;  % 兼容配置文件中的 pull 参数
 else
     fd_rate = 10e3;  % 默认 10kHz/s (0.01MHz/s)
+end
+
+% 起始时间 (秒)，用于控制信号所属阶段
+% 与Np解耦，直接指定干扰信号的起始时间点
+% - start_time < capture_time: 捕获阶段 (fd=0)
+% - capture_time <= start_time < capture_time+pull_off_time: 拖引阶段
+% - start_time >= capture_time+pull_off_time: 停止阶段 (无干扰)
+if isfield(params, 'start_time')
+    start_time = params.start_time;
+else
+    start_time = 0;  % 默认从捕获阶段开始
 end
 
 % 三阶段时长 (秒)
@@ -54,7 +75,8 @@ for m = 1:data_num
     % 处理每个脉冲
     for p = 0:(Np-1)
         pri_start_idx = p * PRI_samp + 1;
-        current_time_s = p * (PRI_samp / fs);
+        % 使用start_time作为起始时间，与Np解耦
+        current_time_s = start_time + p * (PRI_samp / fs);
 
         % --- 判断当前处于哪个阶段 ---
         if current_time_s < capture_time
@@ -87,6 +109,7 @@ for m = 1:data_num
     jam_info(m).fd_rate = abs(fd_rate);     % 多普勒频率拖引率 (Hz/s)
     jam_info(m).doppler_direction = doppler_direction;  % 拖引方向
     jam_info(m).final_fd_kHz = final_fd_kHz;            % 最终多普勒频率(kHz)
+    jam_info(m).start_time = start_time;                % 起始时间(s)
 
     pure_jam(m,:) = jam_signal;
 end

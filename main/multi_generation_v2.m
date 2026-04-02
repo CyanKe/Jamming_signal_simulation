@@ -25,7 +25,7 @@ metadata = struct('sample_idx', {}, 'jam_types', {}, 'JNR', {}, 'pos', {}, 'jam_
 for m = 1:data_num
     % 初始化当前样本的metadata
     metadata(m).sample_idx = m;
-    metadata(m).jam_types = label;
+    metadata(m).jam_types = label(:)';  % 强制转为行向量，确保JSON输出为数组
     metadata(m).JNR = current_jnr;
     metadata(m).jam_params = struct();
 
@@ -70,8 +70,10 @@ for m = 1:data_num
                 jam_params = params;
                 jam_params.JNR = current_jnr;
                 jam_params.pull = cfg.jamming.vgpo.pull;  % 从配置读取
+                jam_params.start_time = cfg.jamming.vgpo.start_time;  % 从配置读取
                 [pure_jam, jam_info] = generate_4vgpo_jamming(tx, jam_params, 1);
                 metadata(m).jam_params.vgpo_pull = jam_params.pull;
+                metadata(m).jam_params.vgpo_start_time = jam_params.start_time;
                 metadata(m).jam_params.vgpo_doppler_direction = jam_info(1).doppler_direction;
                 metadata(m).jam_params.vgpo_final_fd_kHz = jam_info(1).final_fd_kHz;
 

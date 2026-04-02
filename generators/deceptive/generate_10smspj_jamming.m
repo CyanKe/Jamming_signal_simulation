@@ -64,6 +64,8 @@ for m = 1:data_num
     delay_samp = round(randn()*5e-6 * fs);
     target_pos = pos + delay_samp;
 
+    % 确保 target_pos 为正整数
+    target_pos = max(1, round(target_pos));
     right_range = target_pos + Ntau - 1;
 
     % 检查是否越界并注入干扰

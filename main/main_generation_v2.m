@@ -93,7 +93,7 @@ for current_jnr = JNR_values
     path_stfts = fullfile(snr_output_dir, sprintf('%s_echo_stfts.mat', dataset_type));
     path_times = fullfile(snr_output_dir, sprintf('%s_echo_times.mat', dataset_type));
     path_label = fullfile(snr_output_dir, sprintf('%s_echo_label.mat', dataset_type));
-    path_metadata = fullfile(snr_output_dir, sprintf('%s_echo_metadata.mat', dataset_type));
+    path_metadata = fullfile(snr_output_dir, sprintf('%s_echo_metadata.json', dataset_type));
 
     % 保存数据
     all_stfts = single(all_stfts);
@@ -101,10 +101,38 @@ for current_jnr = JNR_values
     save(path_stfts, 'all_stfts', '-v7.3');
     save(path_times, 'all_times', '-v7.3');
     save(path_label, 'all_label', '-v7.3');
-    save(path_metadata, 'all_metadata', '-v7.3');
+
+    % 保存metadata为JSON格式
+    % jsonencode可以直接处理struct数组
+    jsonStr = jsonencode(all_metadata);
+    fid = fopen(path_metadata, 'w', 'n', 'UTF-8');
+    fprintf(fid, '%s', jsonStr);
+    fclose(fid);
 
     fprintf('已保存到: %s\n', snr_output_dir);
 end
 toc
 
 fprintf('数据生成完成!\n');
+
+split_num = round(SAMPLE_NUM/4);
+for j = 0:split_num-1
+figure(j+1)
+for i = 1:4
+    subplot(2,4,i)
+    t_axis = params.t_total;% 时间轴 us
+    plot(t_axis, real(all_times(4*j+i,:)));
+    xlabel('时间 (us)');
+    ylabel('幅度');
+    grid on;
+
+    subplot(2,4,4+i)
+    imagesc(T*1e6, F/1e6, abs((squeeze(all_stfts(4*j+i,:,:)))) + eps);
+    % colormap(Londres)
+    axis xy;
+    xlabel('时间 (us)');
+    ylabel('频率 (MHz)');
+    grid on;
+
+end
+end

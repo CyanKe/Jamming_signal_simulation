@@ -12,3 +12,4 @@ Thumbs.db
 *.txt
 **/config.m
 .claude/
+**.json

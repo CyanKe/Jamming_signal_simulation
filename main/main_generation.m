@@ -26,8 +26,9 @@ params.SNR = -5;         % 信噪比
 % JNR_values = 0:5:20;    %干噪比范围 dB
 JNR_values = 10;    % 干噪比范围 dB
 params.numClasses = 16;    % 基础16种干扰
-SAMPLE_NUM_S = 20;
-SAMPLE_NUM_M = 20;
+dataset_type = 'val';
+SAMPLE_NUM_S = 100;
+SAMPLE_NUM_M = 100;
 params.pos = 5000;      %在PRI中第5000点处
 % --- 2. 生成计划 ---
 % 定义要生成的干扰类型和对应的标签
@@ -55,8 +56,8 @@ generation_plan = {
 
     % 在这里添加更多类型，例如 'sweep', 3, 200
 
-    'RGPO+AJ',  [3,5] , SAMPLE_NUM_M;
-    'VGPO+AJ',  [4,5] , SAMPLE_NUM_M;
+    % 'RGPO+AJ',  [3,5] , SAMPLE_NUM_M;
+    % 'VGPO+AJ',  [4,5] , SAMPLE_NUM_M;
 
     'DFTJ+AJ',  [1,5] , SAMPLE_NUM_M;
     % 'DFTJ+BJ',  [1,6] , SAMPLE_NUM_M;
@@ -175,17 +176,10 @@ for current_jnr = JNR_values
         all_stfts(i,:,:) = S;
     end
     
-    % path_stfts = fullfile(snr_output_dir, 'train_echo_stfts.mat');
-    % path_times = fullfile(snr_output_dir, 'train_echo_times.mat');
-    % path_label = fullfile(snr_output_dir, 'train_echo_label.mat');
-
-    path_stfts = fullfile(snr_output_dir, 'val_echo_stfts.mat');
-    path_times = fullfile(snr_output_dir, 'val_echo_times.mat');
-    path_label = fullfile(snr_output_dir, 'val_echo_label.mat');
-
-    % path_stfts = fullfile(snr_output_dir, 'test_echo_stfts.mat');
-    % path_times = fullfile(snr_output_dir, 'test_echo_times.mat');
-    % path_label = fullfile(snr_output_dir, 'test_echo_label.mat');
+    path_stfts = fullfile(snr_output_dir, sprintf('%s_echo_stfts.mat', dataset_type));
+    path_times = fullfile(snr_output_dir, sprintf('%s_echo_times.mat', dataset_type));
+    path_label = fullfile(snr_output_dir, sprintf('%s_echo_label.mat', dataset_type));
+    path_metadata = fullfile(snr_output_dir, sprintf('%s_echo_metadata.mat', dataset_type));
 
     all_stfts = single(all_stfts);
     all_times = single(all_times);
@@ -194,7 +188,7 @@ for current_jnr = JNR_values
     save(path_label, 'all_label', '-v7.3');
 
     % 保存metadata
-    path_metadata = fullfile(snr_output_dir, 'test_echo_metadata.mat');
+    
     save(path_metadata, 'all_metadata', '-v7.3');
     fprintf('Saved metadata to: %s\n', path_metadata);
 

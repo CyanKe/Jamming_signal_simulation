@@ -1,12 +1,11 @@
-% =====================================================================
-% generate_11cij_jamming.m - 生成切片与交织干扰干扰样本
-% =====================================================================
-function [pure_jam, jam_info] = generate_11cij_jamming(tx, params, data_num)
-% generate_11cij_jamming - 生成切片交织干扰
+function [pure_jam, jam_info] = generate_cij_jamming(tx, params, data_num)
+% generate_cij_jamming： 利用已有的发射信号片段生成切片交织干扰
+% tx: 包含 LFM 信号的发射数据
+% params: 参数结构体 (需包含 fs, N_total, JNR, PRI_samp, Ntau, Np, pos, M)
+% data_num: 生成样本数
 % 输出:
 %   pure_jam - 干扰信号
 %   jam_info - 干扰参数信息 (用于metadata记录)
-%
 % CIJ特点：转发片段之间无采样间隔，STFT图表现为连续信号
 % 与ISRJ区别：ISRJ转发片段之间有间隔，STFT图不连续
 

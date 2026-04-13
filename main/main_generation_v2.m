@@ -34,7 +34,7 @@ Step = Nwin - Noverlap;
 
 %% 循环生成每种干扰
 len = size(generation_plan, 1);
-SAMPLE_NUM = sum([generation_plan{:, 3}]);
+SAMPLE_NUM = sum([generation_plan{:, 2}]);
 
 tic
 for current_jnr = JNR_values
@@ -50,9 +50,8 @@ for current_jnr = JNR_values
 
     point_l = 1;
     for i = 1:len
-        jam_type = generation_plan{i, 1};
-        label = generation_plan{i, 2};
-        num_to_generate = generation_plan{i, 3};
+        jam_types = generation_plan{i, 1};
+        num_to_generate = generation_plan{i, 2};
 
         Aj = 10^(current_jnr/20);
 
@@ -71,14 +70,13 @@ for current_jnr = JNR_values
         end
 
         % 生成样本 (使用配置中的参数)
-        [new_times, new_label, new_metadata] = multi_generation_v2(label, params, current_jnr, num_to_generate, cfg);
+        [new_times, new_metadata] = multi_generation_v2(jam_types, params, current_jnr, num_to_generate, cfg);
 
         if i ~= 1
             point_l = point_r + 1;
         end
         point_r = point_l + num_to_generate - 1;
         all_times(point_l:point_r, :) = new_times;
-        all_label(point_l:point_r, :) = new_label;
         all_metadata(point_l:point_r) = new_metadata;
     end
 
@@ -92,7 +90,6 @@ for current_jnr = JNR_values
     dataset_type = cfg.output.dataset_type;
     path_stfts = fullfile(snr_output_dir, sprintf('%s_echo_stfts.mat', dataset_type));
     path_times = fullfile(snr_output_dir, sprintf('%s_echo_times.mat', dataset_type));
-    path_label = fullfile(snr_output_dir, sprintf('%s_echo_label.mat', dataset_type));
     path_metadata = fullfile(snr_output_dir, sprintf('%s_echo_metadata.json', dataset_type));
 
     % 保存数据
@@ -100,7 +97,6 @@ for current_jnr = JNR_values
     all_times = single(all_times);
     save(path_stfts, 'all_stfts', '-v7.3');
     save(path_times, 'all_times', '-v7.3');
-    save(path_label, 'all_label', '-v7.3');
 
     % 保存metadata为JSON格式
     % jsonencode可以直接处理struct数组

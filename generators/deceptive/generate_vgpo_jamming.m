@@ -1,14 +1,8 @@
-% ==========================================================
-% generate_vgpo_jamming.m - 生成速度拖引(VGPO)假目标干扰样本
-% ==========================================================
-% VGPO三阶段：捕获(capture) -> 拖引(pull-off) -> 停止(cessation)
-% ==========================================================
-function [pure_jam, jam_info] = generate_4vgpo_jamming(tx, params, data_num)
-% generate_4vgpo_jamming - 生成速度拖引干扰
+function [pure_jam, jam_info] = generate_vgpo_jamming(tx, params, data_num)
+% generate_vgpo_jamming - 生成速度拖引干扰
 % 输出:
 %   pure_jam - 干扰信号
 %   jam_info - 干扰参数信息 (用于metadata记录)
-%
 % 可控参数 (通过params传递):
 %   fd_rate     - 多普勒频率拖引率 (Hz/s)，默认 10kHz/s
 %   start_time  - 起始时间 (s)，控制信号所属阶段，默认 0

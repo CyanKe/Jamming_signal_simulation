@@ -1,7 +1,7 @@
 % ==========================================================
 % generate_NFMJ.m - 生成噪声调频干扰（NFMJ）
 % ==========================================================
-function [pure_jam] = generate_12nfmj_jamming(tx, params, data_num)
+function [pure_jam] = generate_nfmj_jamming(tx, params, data_num)
 % 解包参数
 fs = params.fs;
 N_total = params.N_total;

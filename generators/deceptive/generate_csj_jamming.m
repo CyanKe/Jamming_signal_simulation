@@ -1,9 +1,8 @@
-% ==========================================================
-% Comb Spectrum Jamming (CSJ) generator (已修正)
-% 梳状谱干扰：LFM × comb
-% ==========================================================
-function [pure_jam, jam_info] = generate_15csj_jamming(tx, params, data_num)
+function [pure_jam, jam_info] = generate_csj_jamming(tx, params, data_num)
 % generate_15csj_jamming - 生成梳状谱干扰
+% tx: 包含 LFM 信号的发射数据
+% params: 参数结构体 (需包含 fs, N_total, JNR, PRI_samp, Ntau, Np, pos, M)
+% data_num: 生成样本数
 % 输出:
 %   pure_jam - 干扰信号
 %   jam_info - 干扰参数信息 (用于metadata记录)

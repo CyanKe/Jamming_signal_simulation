@@ -1,4 +1,4 @@
-function [pure_jam,bbox_info,jam_info] = generate_1dftj_jamming(tx, params, data_num)
+function [pure_jam,bbox_info,jam_info] = generate_dftj_jamming(tx, params, data_num)
 % generate_1dftj_jamming - 生成密集假目标干扰
 % 输出:
 %   pure_jam - 干扰信号

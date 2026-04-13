@@ -1,4 +1,4 @@
-function [pure_jam, jam_info] = generate_10smspj_jamming(tx, params, data_num)
+function [pure_jam, jam_info] = generate_smspj_jamming(tx, params, data_num)
 % generate_smspj_jamming: 利用已有的发射信号片段生成 SMSPJ 干扰
 % tx: 包含 LFM 信号的发射数据
 % params: 参数结构体 (需包含 fs, N_total, JNR, PRI_samp, Ntau, Np, pos, M)

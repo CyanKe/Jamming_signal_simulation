@@ -1,4 +1,4 @@
-function [pure_jam] = generate_14namj_jammingr(tx, params, data_num)
+function [pure_jam] = generate_namj_jamming(tx, params, data_num)
     % 解包参数
     fs = params.fs;
     N_total = params.N_total;

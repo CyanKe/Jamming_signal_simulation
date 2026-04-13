@@ -1,7 +1,7 @@
 % ==========================================================
 % generate_5ab_jamming.m - 生成瞄准式/阻塞干扰样本
 % ==========================================================
-function [pure_jam] = generate_5ab_jamming(tx, params, data_num)
+function [pure_jam] = generate_ab_jamming(tx, params, data_num)
 % 解包参数
 fs = params.fs;
 N_total = params.N_total;

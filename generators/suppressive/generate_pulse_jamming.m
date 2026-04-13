@@ -2,7 +2,7 @@
 % Constant-Center-Frequency Pulse Jamming (CCF-PJ)
 % 固定中心频率脉冲干扰
 % ==========================================================
-function [pure_jam] = generate_16pulse_jamming(tx, params, data_num)
+function [pure_jam] = generate_pulse_jamming(tx, params, data_num)
 
 % -------- 参数解包 --------
 fs       = params.fs;

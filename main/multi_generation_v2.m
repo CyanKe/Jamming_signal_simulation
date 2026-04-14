@@ -148,7 +148,7 @@ for m = 1:data_num
             case 'PJ' % PJ - 脉冲干扰
                 jam_params = params;
                 jam_params.JNR = current_jnr;
-                [pure_jam] = generate_14pulse_jamming(tx, jam_params, 1);
+                [pure_jam] = generate_pulse_jamming(tx, jam_params, 1);
 
                 
             % case 3  % RGPO - 距离假目标干扰

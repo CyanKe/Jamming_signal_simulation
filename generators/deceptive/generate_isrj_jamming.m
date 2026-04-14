@@ -1,4 +1,4 @@
-function [pure_jam,jam_info] = generate_isrj_jamming(tx, params, data_num)
+function [pure_jam,bbox_info,jam_info] = generate_isrj_jamming(tx, params, data_num)
 % generate_2isrj_jamming - 生成间歇采样转发干扰
 % tx: 包含 LFM 信号的发射数据
 % params: 参数结构体 (需包含 fs, N_total, JNR, PRI_samp, Ntau, Np, pos, M)

@@ -91,12 +91,30 @@ for current_jnr = JNR_values
     path_stfts = fullfile(snr_output_dir, sprintf('%s_echo_stfts.mat', dataset_type));
     path_times = fullfile(snr_output_dir, sprintf('%s_echo_times.mat', dataset_type));
     path_metadata = fullfile(snr_output_dir, sprintf('%s_echo_metadata.json', dataset_type));
+    path_plan_mat = fullfile(snr_output_dir, 'generation_plan.mat');
+    path_plan_json = fullfile(snr_output_dir, 'generation_plan.json');
 
     % 保存数据
     all_stfts = single(all_stfts);
     all_times = single(all_times);
     save(path_stfts, 'all_stfts', '-v7.3');
     save(path_times, 'all_times', '-v7.3');
+    save(path_plan_mat, 'generation_plan', '-v7.3');
+
+    % 保存generation_plan为JSON格式 (便于查看)
+    plan_struct = struct('jam_types', {}, 'sample_num', {});
+    for p = 1:size(generation_plan, 1)
+        jt = generation_plan{p, 1};
+        if iscell(jt)
+            plan_struct(p).jam_types = jt;
+        else
+            plan_struct(p).jam_types = {jt};
+        end
+        plan_struct(p).sample_num = generation_plan{p, 2};
+    end
+    fid = fopen(path_plan_json, 'w', 'n', 'UTF-8');
+    fprintf(fid, '%s', jsonencode(plan_struct));
+    fclose(fid);
 
     % 保存metadata为JSON格式
     % jsonencode可以直接处理struct数组
@@ -111,24 +129,26 @@ toc
 
 fprintf('数据生成完成!\n');
 
-split_num = round(SAMPLE_NUM/4);
-for j = 0:split_num-1
-figure(j+1)
-for i = 1:4
-    subplot(2,4,i)
-    t_axis = params.t_total;% 时间轴 us
-    plot(t_axis, real(all_times(4*j+i,:)));
-    xlabel('时间 (us)');
-    ylabel('幅度');
-    grid on;
+if SAMPLE_NUM < 40
+    split_num = round(SAMPLE_NUM/4);
+    for j = 0:split_num-1
+    figure(j+1)
+    for i = 1:4
+        subplot(2,4,i)
+        t_axis = params.t_total;% 时间轴 us
+        plot(t_axis, real(all_times(4*j+i,:)));
+        xlabel('时间 (us)');
+        ylabel('幅度');
+        grid on;
 
-    subplot(2,4,4+i)
-    imagesc(T*1e6, F/1e6, abs((squeeze(all_stfts(4*j+i,:,:)))) + eps);
-    % colormap(Londres)
-    axis xy;
-    xlabel('时间 (us)');
-    ylabel('频率 (MHz)');
-    grid on;
+        subplot(2,4,4+i)
+        imagesc(T*1e6, F/1e6, abs((squeeze(all_stfts(4*j+i,:,:)))) + eps);
+        % colormap(Londres)
+        axis xy;
+        xlabel('时间 (us)');
+        ylabel('频率 (MHz)');
+        grid on;
 
-end
+    end
+    end
 end

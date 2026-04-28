@@ -55,12 +55,14 @@ for current_jnr = JNR_values
 
         Aj = 10^(current_jnr/20);
 
-        % 创建输出目录
-        if cfg.output.use_datetime
+        % 创建输出目录 (custom_dirname优先)
+        if ~isempty(cfg.output.custom_dirname)
+            time_str = cfg.output.custom_dirname;
+        elseif cfg.output.use_datetime
             current_datetime = datetime('now', 'Format', 'yyMMdd');
             time_str = char(current_datetime);
         else
-            time_str = cfg.output.custom_dirname;
+            time_str = 'default';
         end
         output_dir = fullfile(root_path, 'output', time_str);
         snr_output_dir = fullfile(output_dir, sprintf('JNR_%+d', current_jnr));

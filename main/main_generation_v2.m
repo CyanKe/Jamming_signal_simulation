@@ -11,6 +11,7 @@ addpath(fullfile(root_path, 'generators', 'base'));
 addpath(fullfile(root_path, 'generators', 'deceptive'));
 addpath(fullfile(root_path, 'generators', 'suppressive'));
 addpath(fullfile(root_path, 'utils'));
+addpath(fullfile(root_path, 'utils', 'features'));
 
 tic
 
@@ -88,11 +89,25 @@ for current_jnr = JNR_values
         all_stfts(i, :, :) = S;
     end
 
+    % 提取多域特征
+    fprintf('正在提取特征...\n');
+    % 先提取第一个样本特征来初始化结构体数组
+    all_features = extract_signal_features(all_times(1, 1:params.PRI_samp), params.fs);
+    for i = 2:SAMPLE_NUM
+        features = extract_signal_features(all_times(i, 1:params.PRI_samp), params.fs);
+        all_features(i) = features;
+        if mod(i, 100) == 0
+            fprintf('  已处理 %d/%d 样本\n', i, SAMPLE_NUM);
+        end
+    end
+    fprintf('  已处理 %d/%d 样本\n', 1, SAMPLE_NUM);
+
     % 根据配置设置输出路径
     dataset_type = cfg.output.dataset_type;
     path_stfts = fullfile(snr_output_dir, sprintf('%s_echo_stfts.mat', dataset_type));
     path_times = fullfile(snr_output_dir, sprintf('%s_echo_times.mat', dataset_type));
     path_metadata = fullfile(snr_output_dir, sprintf('%s_echo_metadata.json', dataset_type));
+    path_features = fullfile(snr_output_dir, sprintf('%s_echo_features.json', dataset_type));
     path_plan_mat = fullfile(snr_output_dir, 'generation_plan.mat');
     path_plan_json = fullfile(snr_output_dir, 'generation_plan.json');
 
@@ -122,6 +137,12 @@ for current_jnr = JNR_values
     % jsonencode可以直接处理struct数组
     jsonStr = jsonencode(all_metadata);
     fid = fopen(path_metadata, 'w', 'n', 'UTF-8');
+    fprintf(fid, '%s', jsonStr);
+    fclose(fid);
+
+    % 保存特征为JSON格式
+    jsonStr = jsonencode(all_features);
+    fid = fopen(path_features, 'w', 'n', 'UTF-8');
     fprintf(fid, '%s', jsonStr);
     fclose(fid);
 

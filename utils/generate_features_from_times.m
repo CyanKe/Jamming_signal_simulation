@@ -62,7 +62,7 @@ function generate_features_from_times(input_dir, varargin)
         input_dir = fullfile(output_root, date_dirs(idx(1)).name);
     end
 
-    target_dirs = find_target_dirs(input_dir, force);
+    target_dirs = find_target_dirs(input_dir);
 
     if isempty(target_dirs)
         error('未找到包含时域数据文件的目录: %s', input_dir);
@@ -95,13 +95,11 @@ end
 %% ==========================================================
 %% find_target_dirs - 递归查找包含 *echo_times.mat 的目录
 %% ==========================================================
-function target_dirs = find_target_dirs(root_dir, force)
+function target_dirs = find_target_dirs(root_dir)
     target_dirs = {};
 
     if has_times_file(root_dir)
-        if force || ~has_features_file(root_dir)
-            target_dirs{end+1} = root_dir;
-        end
+        target_dirs{end+1} = root_dir;
         return;
     end
 
@@ -111,9 +109,7 @@ function target_dirs = find_target_dirs(root_dir, force)
     for i = 1:length(subdirs)
         jnr_dir = fullfile(root_dir, subdirs(i).name);
         if has_times_file(jnr_dir)
-            if force || ~has_features_file(jnr_dir)
-                target_dirs{end+1} = jnr_dir;
-            end
+            target_dirs{end+1} = jnr_dir;
         end
     end
 
@@ -123,7 +119,7 @@ function target_dirs = find_target_dirs(root_dir, force)
         all_sub = all_sub(~ismember({all_sub.name}, {'.', '..'}));
         for i = 1:length(all_sub)
             sub = fullfile(root_dir, all_sub(i).name);
-            found = find_target_dirs(sub, force);
+            found = find_target_dirs(sub);
             for j = 1:length(found)
                 target_dirs{end+1} = found{j};
             end
@@ -140,70 +136,71 @@ function flag = has_times_file(dir_path)
 end
 
 %% ==========================================================
-%% has_features_file - 检查是否已有特征文件
-%% ==========================================================
-function flag = has_features_file(dir_path)
-    f = dir(fullfile(dir_path, '*_echo_features.json'));
-    flag = ~isempty(f);
-end
-
-%% ==========================================================
 %% process_directory - 处理单个数据目录
 %% ==========================================================
 function process_directory(dir_path, fs, use_parallel, root_path)
     fprintf('\n--- 处理目录: %s ---\n', dir_path);
 
-    f = dir(fullfile(dir_path, '*_echo_times.mat'));
-    if isempty(f)
+    times_files = dir(fullfile(dir_path, '*_echo_times.mat'));
+    if isempty(times_files)
         fprintf('  跳过: 未找到时域数据\n');
         return;
     end
-    times_path = fullfile(dir_path, f(1).name);
 
-    name_parts = strsplit(f(1).name, '_echo_times.mat');
-    dataset_type = name_parts{1};
-    features_path = fullfile(dir_path, sprintf('%s_echo_features.json', dataset_type));
-    fprintf('  数据集: %s\n', dataset_type);
+    % 逐个处理每个数据集
+    for t = 1:length(times_files)
+        name_parts = strsplit(times_files(t).name, '_echo_times.mat');
+        dataset_type = name_parts{1};
+        features_path = fullfile(dir_path, sprintf('%s_echo_features.json', dataset_type));
 
-    % 加载数据
-    fprintf('  加载时域数据...');
-    load(times_path, 'all_times');
-    [SAMPLE_NUM, ~] = size(all_times);
-    fprintf(' [%d x %d]\n', SAMPLE_NUM, size(all_times, 2));
-
-    % 提取特征 (cell数组避免struct数组的parfor限制)
-    fprintf('  提取特征...\n');
-    feature_cell = cell(SAMPLE_NUM, 1);
-    tic;
-
-    features_dir = fullfile(root_path, 'utils', 'features');
-    if use_parallel && SAMPLE_NUM >= 50
-        parfor i = 1:SAMPLE_NUM
-            addpath(features_dir);
-            feature_cell{i} = extract_signal_features(all_times(i, :), fs);
+        % 跳过已存在的特征文件
+        if exist(features_path, 'file')
+            fprintf('  跳过: %s (特征已存在)\n', dataset_type);
+            continue;
         end
-        fprintf('  并行, 用时 %.1f秒\n', toc);
-    else
-        for i = 1:SAMPLE_NUM
-            feature_cell{i} = extract_signal_features(all_times(i, :), fs);
-            if mod(i, round(SAMPLE_NUM/10)) == 0
-                fprintf('    %d/%d (%d%%)\n', i, SAMPLE_NUM, round(i/SAMPLE_NUM*100));
+
+        % 加载数据
+        times_path = fullfile(dir_path, times_files(t).name);
+        fprintf('  数据集: %s\n', dataset_type);
+        fprintf('  加载时域数据...');
+        load(times_path, 'all_times');
+        [SAMPLE_NUM, ~] = size(all_times);
+        fprintf(' [%d x %d]\n', SAMPLE_NUM, size(all_times, 2));
+
+        % 提取特征
+        fprintf('  提取特征...\n');
+        feature_cell = cell(SAMPLE_NUM, 1);
+        tic;
+
+        features_dir = fullfile(root_path, 'utils', 'features');
+        if use_parallel && SAMPLE_NUM >= 50
+            parfor i = 1:SAMPLE_NUM
+                addpath(features_dir);
+                feature_cell{i} = extract_signal_features(all_times(i, :), fs);
             end
+            fprintf('  并行, 用时 %.1f秒\n', toc);
+        else
+            for i = 1:SAMPLE_NUM
+                feature_cell{i} = extract_signal_features(all_times(i, :), fs);
+                if mod(i, round(SAMPLE_NUM/10)) == 0
+                    fprintf('    %d/%d (%d%%)\n', i, SAMPLE_NUM, round(i/SAMPLE_NUM*100));
+                end
+            end
+            fprintf('  完成, 用时 %.1f秒\n', toc);
         end
-        fprintf('  完成, 用时 %.1f秒\n', toc);
-    end
 
-    % cell -> struct array
-    all_features = feature_cell{1};
-    for i = 2:SAMPLE_NUM
-        all_features(i) = feature_cell{i};
-    end
+        % cell -> struct array
+        all_features = feature_cell{1};
+        for i = 2:SAMPLE_NUM
+            all_features(i) = feature_cell{i};
+        end
 
-    % 保存
-    fprintf('  保存特征...');
-    jsonStr = jsonencode(all_features);
-    fid = fopen(features_path, 'w', 'n', 'UTF-8');
-    fprintf(fid, '%s', jsonStr);
-    fclose(fid);
-    fprintf(' 已保存: %s\n', features_path);
+        % 保存
+        fprintf('  保存特征...');
+        jsonStr = jsonencode(all_features);
+        fid = fopen(features_path, 'w', 'n', 'UTF-8');
+        fprintf(fid, '%s', jsonStr);
+        fclose(fid);
+        fprintf(' 已保存: %s\n', features_path);
+    end
 end

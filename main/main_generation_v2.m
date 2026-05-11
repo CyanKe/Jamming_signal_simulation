@@ -89,18 +89,29 @@ for current_jnr = JNR_values
         all_stfts(i, :, :) = S;
     end
 
-    % 提取多域特征
+    % 提取多域特征（并行加速）
     fprintf('正在提取特征...\n');
-    % 先提取第一个样本特征来初始化结构体数组
-    all_features = extract_signal_features(all_times(1, 1:params.PRI_samp), params.fs);
-    for i = 2:SAMPLE_NUM
-        features = extract_signal_features(all_times(i, 1:params.PRI_samp), params.fs);
-        all_features(i) = features;
-        if mod(i, 100) == 0
-            fprintf('  已处理 %d/%d 样本\n', i, SAMPLE_NUM);
+    use_parallel = license('test', 'Distrib_Computing_Toolbox') && ~isempty(ver('parallel')) && SAMPLE_NUM >= 50;
+    feature_cell = cell(SAMPLE_NUM, 1);
+    features_dir = fullfile(root_path, 'utils', 'features');
+    if use_parallel
+        parfor i = 1:SAMPLE_NUM
+            addpath(features_dir);
+            feature_cell{i} = extract_signal_features(all_times(i, 1:params.PRI_samp), params.fs);
+        end
+        fprintf('  并行完成, 处理 %d 个样本\n', SAMPLE_NUM);
+    else
+        for i = 1:SAMPLE_NUM
+            feature_cell{i} = extract_signal_features(all_times(i, 1:params.PRI_samp), params.fs);
+            if mod(i, 100) == 0
+                fprintf('  已处理 %d/%d 样本\n', i, SAMPLE_NUM);
+            end
         end
     end
-    fprintf('  已处理 %d/%d 样本\n', 1, SAMPLE_NUM);
+    all_features = feature_cell{1};
+    for i = 2:SAMPLE_NUM
+        all_features(i) = feature_cell{i};
+    end
 
     % 根据配置设置输出路径
     dataset_type = cfg.output.dataset_type;

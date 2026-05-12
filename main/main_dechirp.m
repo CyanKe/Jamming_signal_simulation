@@ -162,7 +162,6 @@ function main_dechirp(input_dir, options)
         save(output_file, 'all_stfts', '-v7.3');
         fprintf('  已保存: %s\n\n', output_file);
 
-    fprintf('去斜处理完成!\n');
-
-    
+    fprintf('去斜处理完成!\n');  
+    end
 end

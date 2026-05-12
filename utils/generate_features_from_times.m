@@ -1,31 +1,31 @@
-%% ==========================================================
-%% generate_features_from_times.m - 从已有时域数据生成特征
-%% ==========================================================
-%% 读取已生成的 all_times.mat 文件，提取多域特征并保存为JSON
-%% 支持并行处理（需Parallel Computing Toolbox）
-%%
-%% 用法:
-%%   1. 直接运行，自动查找最新输出目录并处理所有JNR子目录
-%%      >> generate_features_from_times
-%%
-%%   2. 指定日期目录，处理其下所有JNR子目录
-%%      >> generate_features_from_times('output/20us_multi')
-%%
-%%   3. 指定JNR目录，只处理该目录
-%%      >> generate_features_from_times('output/20us_multi/JNR_+10')
-%%
-%%   4. 关闭并行模式
-%%      >> generate_features_from_times('output/20us_multi', 'parallel', false)
-%%
-%%   5. 强制重新生成（覆盖已有文件）
-%%      >> generate_features_from_times('output/20us_multi', 'force', true)
+% ==========================================================
+% generate_features_from_times.m - 从已有时域数据生成特征
+% ==========================================================
+% 读取已生成的 all_times.mat 文件，提取多域特征并保存为JSON
+% 支持并行处理（需Parallel Computing Toolbox）
+%
+% 用法:
+%   1. 直接运行，自动查找最新输出目录并处理所有JNR子目录
+%      >> generate_features_from_times
+%
+%   2. 指定日期目录，处理其下所有JNR子目录
+%      >> generate_features_from_times('output/20us_multi')
+%
+%   3. 指定JNR目录，只处理该目录
+%      >> generate_features_from_times('output/20us_multi/JNR_+10')
+%
+%   4. 关闭并行模式
+%      >> generate_features_from_times('output/20us_multi', 'parallel', false)
+%
+%   5. 强制重新生成（覆盖已有文件）
+%      >> generate_features_from_times('output/20us_multi', 'force', true)
 
 function generate_features_from_times(input_dir, varargin)
     if nargout == 0
         clearvars -except input_dir varargin; clc;
     end
 
-    %% 解析参数
+    % 解析参数
     p = inputParser;
     addParameter(p, 'parallel', true, @islogical);
     addParameter(p, 'force', false, @islogical);
@@ -33,13 +33,13 @@ function generate_features_from_times(input_dir, varargin)
     use_parallel = p.Results.parallel;
     force = p.Results.force;
 
-    %% 添加路径
+    % 添加路径
     script_path = fileparts(mfilename('fullpath'));
     root_path = fileparts(script_path);
     addpath(fullfile(root_path, 'utils'));
     addpath(fullfile(root_path, 'utils', 'features'));
 
-    %% 检查并行工具箱
+    % 检查并行工具箱
     if use_parallel
         has_parallel = license('test', 'Distrib_Computing_Toolbox') && ...
                        ~isempty(ver('parallel'));
@@ -49,7 +49,7 @@ function generate_features_from_times(input_dir, varargin)
         end
     end
 
-    %% 确定要处理的目录列表
+    % 确定要处理的目录列表
     if nargin < 1 || isempty(input_dir)
         output_root = fullfile(root_path, 'output');
         date_dirs = dir(output_root);
@@ -78,11 +78,11 @@ function generate_features_from_times(input_dir, varargin)
     end
     fprintf('========================================\n\n');
 
-    %% 获取采样频率
+    % 获取采样频率
     cfg = config();
     fs = cfg.signal.fs;
 
-    %% 逐个处理每个目录
+    % 逐个处理每个目录
     for d = 1:length(target_dirs)
         process_directory(target_dirs{d}, fs, use_parallel, root_path);
     end
@@ -92,9 +92,9 @@ function generate_features_from_times(input_dir, varargin)
     fprintf('========================================\n');
 end
 
-%% ==========================================================
-%% find_target_dirs - 递归查找包含 *echo_times.mat 的目录
-%% ==========================================================
+% ==========================================================
+% find_target_dirs - 递归查找包含 *echo_times.mat 的目录
+% ==========================================================
 function target_dirs = find_target_dirs(root_dir)
     target_dirs = {};
 
@@ -127,17 +127,17 @@ function target_dirs = find_target_dirs(root_dir)
     end
 end
 
-%% ==========================================================
-%% has_times_file - 检查目录是否包含时域数据
-%% ==========================================================
+% ==========================================================
+% has_times_file - 检查目录是否包含时域数据
+% ==========================================================
 function flag = has_times_file(dir_path)
     f = dir(fullfile(dir_path, '*_echo_times.mat'));
     flag = ~isempty(f);
 end
 
-%% ==========================================================
-%% process_directory - 处理单个数据目录
-%% ==========================================================
+% ==========================================================
+% process_directory - 处理单个数据目录
+% ==========================================================
 function process_directory(dir_path, fs, use_parallel, root_path)
     fprintf('\n--- 处理目录: %s ---\n', dir_path);
 
@@ -183,7 +183,7 @@ function process_directory(dir_path, fs, use_parallel, root_path)
             for i = 1:SAMPLE_NUM
                 feature_cell{i} = extract_signal_features(all_times(i, :), fs);
                 if mod(i, round(SAMPLE_NUM/10)) == 0
-                    fprintf('    %d/%d (%d%%)\n', i, SAMPLE_NUM, round(i/SAMPLE_NUM*100));
+                    fprintf('    %d/%d (%d%)\n', i, SAMPLE_NUM, round(i/SAMPLE_NUM*100));
                 end
             end
             fprintf('  完成, 用时 %.1f秒\n', toc);

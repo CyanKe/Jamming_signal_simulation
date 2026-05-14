@@ -41,7 +41,8 @@ for m = 1:data_num
     % ---------- 3. 固定频率载波 ----------
     cw = exp(1j * 2*pi*fc * t_pri);
 
-    jam_pri = Aj * pulse_gate .* cw;
+    jam_pri = pulse_gate .* cw;
+    jam_pri = jam_pri / sqrt(mean(abs(jam_pri).^2)) * Aj;  % RMS归一化 + 占空比补偿
 
     % ---------- 4. 复制 ----------
     pure_jam(m, :) = repmat(jam_pri, 1, Np);

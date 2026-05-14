@@ -55,10 +55,10 @@ for m = 1:data_num
             % 将门控LFM与噪声片段进行逐元素相乘
             random_phase = exp(rand*2*pi*1i);
             npj_segment = lfm .* noise_segment;
-            npj_segment = npj_segment./abs(max(npj_segment))*random_phase;
+            npj_segment = npj_segment / std(npj_segment) * random_phase;
            
-            % 为每次转发设置一个随机幅度
-            Aj_rand = Aj ;%* (0.9 + rand()*0.2);
+            % 为每次转发设置幅度，补偿占空比(Ntau/PRI_samp)
+            Aj_rand = Aj * sqrt(PRI_samp / Ntau);
             jam_pri(left_range:right_range) = jam_pri(left_range:right_range) + Aj_rand * npj_segment;
         end
     end

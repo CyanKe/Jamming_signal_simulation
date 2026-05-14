@@ -123,45 +123,59 @@ function main_dechirp(input_dir, options)
             continue;
         end
 
-        % 加载时域数据
-        data = load(fullfile(jnr_path, times_files(1).name));
-        if ~isfield(data, 'all_times')
-            fprintf('  文件中无 all_times 变量，跳过\n');
-            continue;
+        % 逐个处理每个数据集 (train/val/test)
+        for f = 1:length(times_files)
+            % 从文件名提取数据集类型前缀 (如 'train', 'val', 'test')
+            filename = times_files(f).name;
+            prefix = regexprep(filename, '_echo_times\.mat$', '');
+
+            % 检查对应的去斜输出是否已存在
+            dechirp_out = fullfile(jnr_path, [prefix '_echo_dechirp_stfts.mat']);
+            if exist(dechirp_out, 'file') && ~use_force
+                fprintf('  %s 去斜已存在，跳过\n', prefix);
+                continue;
+            end
+
+            % 加载时域数据
+            data = load(fullfile(jnr_path, filename));
+            if ~isfield(data, 'all_times')
+                fprintf('  %s 文件中无 all_times 变量，跳过\n', filename);
+                continue;
+            end
+
+            all_times = data.all_times;
+            [num_samples, N] = size(all_times);
+            fprintf('  %s: 样本数=%d, 点数=%d\n', prefix, num_samples, N);
+
+            % 生成去斜参考信号
+            t = (0:N-1)' / fs;
+            dechirp_ref = exp(1j * pi * k * t.^2);
+
+            % 去斜处理
+            tic;
+            all_times_dechirp = all_times .* dechirp_ref';
+            elapsed_dechirp = toc;
+            fprintf('   去斜耗时: %.2f s\n', elapsed_dechirp);
+
+            % 计算STFT
+            N_cols = floor((N - Noverlap) / Step);
+            all_stfts = zeros(num_samples, Nfft, N_cols);
+
+            tic;
+            for i = 1:num_samples
+                [S, ~, ~] = spectrogram(all_times_dechirp(i, :), Nwin, Noverlap, Nfft, fs, 'centered');
+                all_stfts(i, :, :) = S;
+            end
+            elapsed_stft = toc;
+            fprintf('   STFT耗时: %.2f s\n', elapsed_stft);
+
+            % 保存STFT数据
+            all_stfts = single(all_stfts);
+            save(dechirp_out, 'all_stfts', '-v7.3');
+            fprintf('  已保存: %s\n', dechirp_out);
         end
-
-        all_times = data.all_times;
-        [num_samples, N] = size(all_times);
-        fprintf('  样本数: %d, 点数: %d\n', num_samples, N);
-
-        % 生成去斜参考信号
-        t = (0:N-1)' / fs;
-        dechirp_ref = exp(1j * pi * k * t.^2);
-
-        % 去斜处理
-        tic;
-        all_times_dechirp = all_times .* dechirp_ref';
-        elapsed_dechirp = toc;
-        fprintf('  去斜耗时: %.2f s\n', elapsed_dechirp);
-
-        % 计算STFT
-        N_cols = floor((N - Noverlap) / Step);
-        all_stfts = zeros(num_samples, Nfft, N_cols);
-
-        tic;
-        for i = 1:num_samples
-            [S, ~, ~] = spectrogram(all_times_dechirp(i, :), Nwin, Noverlap, Nfft, fs, 'centered');
-            all_stfts(i, :, :) = S;
-        end
-        elapsed_stft = toc;
-        fprintf('  STFT耗时: %.2f s\n', elapsed_stft);
-
-        % 保存STFT数据
-        all_stfts = single(all_stfts);
-        output_file = fullfile(jnr_path, [cfg.output.dataset_type '_echo_dechirp_stfts.mat']);
-        save(output_file, 'all_stfts', '-v7.3');
-        fprintf('  已保存: %s\n\n', output_file);
-
-    fprintf('去斜处理完成!\n');  
+        fprintf('\n');
     end
+
+    fprintf('去斜处理完成!\n');
 end

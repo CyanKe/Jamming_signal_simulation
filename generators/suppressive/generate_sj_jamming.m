@@ -37,6 +37,7 @@ for m = 1:data_num
     sp = sp / std(sp);
     lpFilt = fir1(34, Bj/fs, chebwin(35,30));
     sp_env = filter(lpFilt, 1, sp);
+    sp_env = sp_env / std(sp_env);  % FIR滤波后功率归一化
 
     % 扫频干扰信号
     sp_j = sweep_carrier .* sp_env;

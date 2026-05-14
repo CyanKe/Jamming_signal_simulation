@@ -32,6 +32,7 @@ for m = 1:data_num
     % --- 生成瞄准/阻塞干扰 ---
     lpFilt = fir1(34, Bj/fs, chebwin(35,30));
     sp_j = filter(lpFilt, 1, white_noise); % 使用同一个噪声源滤波
+    sp_j = sp_j / std(sp_j);  % FIR滤波后功率归一化
 
     % 载波
     carrier = exp(1j * 2 * pi * Fj * t);

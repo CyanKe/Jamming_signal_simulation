@@ -99,6 +99,7 @@ for m = 1:data_num
     % 添加到bounding box列表
     bbox_info = [bbox_info; x_min, y_min, x_max, y_max];
     pure_jam(m,:) = repmat(jam_pri, 1, Np);
+    pure_jam(m,:) = pure_jam(m,:) / sqrt(mean(abs(pure_jam(m,:)).^2)) * Aj;
 
     % 记录当前样本的参数信息
     jam_info(m).M = M;  % 转发次数

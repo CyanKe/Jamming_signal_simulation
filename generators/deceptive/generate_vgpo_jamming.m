@@ -106,5 +106,6 @@ for m = 1:data_num
     jam_info(m).start_time = start_time;                % 起始时间(s)
 
     pure_jam(m,:) = jam_signal;
+    pure_jam(m,:) = pure_jam(m,:) / sqrt(mean(abs(pure_jam(m,:)).^2)) * Aj;
 end
 end

@@ -66,10 +66,10 @@ for current_jnr = JNR_values
             time_str = 'default';
         end
         output_dir = fullfile(root_path, 'output', time_str);
-        snr_output_dir = fullfile(output_dir, sprintf('JNR_%+d', current_jnr));
+        jnr_output_dir = fullfile(output_dir, sprintf('JNR_%+d', current_jnr));
 
-        if ~exist(snr_output_dir, 'dir')
-            mkdir(snr_output_dir);
+        if ~exist(jnr_output_dir, 'dir')
+            mkdir(jnr_output_dir);
         end
 
         % 生成样本 (使用配置中的参数)
@@ -115,12 +115,12 @@ for current_jnr = JNR_values
 
     % 根据配置设置输出路径
     dataset_type = cfg.output.dataset_type;
-    path_stfts = fullfile(snr_output_dir, sprintf('%s_echo_stfts.mat', dataset_type));
-    path_times = fullfile(snr_output_dir, sprintf('%s_echo_times.mat', dataset_type));
-    path_metadata = fullfile(snr_output_dir, sprintf('%s_echo_metadata.json', dataset_type));
-    path_features = fullfile(snr_output_dir, sprintf('%s_echo_features.json', dataset_type));
-    path_plan_mat = fullfile(snr_output_dir, 'generation_plan.mat');
-    path_plan_json = fullfile(snr_output_dir, 'generation_plan.json');
+    path_stfts = fullfile(jnr_output_dir, sprintf('%s_echo_stfts.mat', dataset_type));
+    path_times = fullfile(jnr_output_dir, sprintf('%s_echo_times.mat', dataset_type));
+    path_metadata = fullfile(jnr_output_dir, sprintf('%s_echo_metadata.json', dataset_type));
+    path_features = fullfile(jnr_output_dir, sprintf('%s_echo_features.json', dataset_type));
+    path_plan_mat = fullfile(jnr_output_dir, 'generation_plan.mat');
+    path_plan_json = fullfile(jnr_output_dir, 'generation_plan.json');
 
     % 保存数据
     all_stfts = single(all_stfts);
@@ -157,7 +157,7 @@ for current_jnr = JNR_values
     fprintf(fid, '%s', jsonStr);
     fclose(fid);
 
-    fprintf('已保存到: %s\n', snr_output_dir);
+    fprintf('已保存到: %s\n', jnr_output_dir);
 end
 toc
 

@@ -75,6 +75,7 @@ for m = 1:data_num
 
     % ---------- 7. 复制到整个信号 ----------
     pure_jam(m, :) = repmat(jam_pri, 1, Np);
+    pure_jam(m, :) = pure_jam(m, :) / sqrt(mean(abs(pure_jam(m, :)).^2)) * Aj;
 
 end
 end

@@ -83,6 +83,7 @@ for d = 1:data_num
 
     % --- 4. 复制到所有脉冲 ---
     pure_jam(d,:) = repmat(jam_pri, 1, Np);
+    pure_jam(d,:) = pure_jam(d,:) / sqrt(mean(abs(pure_jam(d,:)).^2)) * Aj;
 end
 
 end

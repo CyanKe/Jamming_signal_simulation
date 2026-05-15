@@ -59,19 +59,17 @@ for m = 1:data_num
     % --- 5. 构造单 PRI 模板 ---
     jam_pri = zeros(1, PRI_samp);
 
-    % 设置干扰延迟 (例如相对于目标延迟 10us)
+    % 设置干扰延迟 (例如相对于目标延迟 5us)
     % 在实际对抗中，干扰通常比目标快或重合，这里设为 5us
     delay_samp = round(randn()*5e-6 * fs);
     target_pos = pos + delay_samp;
 
-    % 确保 target_pos 为正整数
-    target_pos = max(1, round(target_pos));
+    % 确保 target_pos 在有效范围内 [1, PRI_samp-Ntau]
+    target_pos = max(1, min(round(target_pos), PRI_samp - Ntau));
     right_range = target_pos + Ntau - 1;
 
-    % 检查是否越界并注入干扰
-    if right_range <= PRI_samp
-        jam_pri(target_pos : right_range) = Aj * smsp_pulse;
-    end
+    % 注入干扰
+    jam_pri(target_pos : right_range) = Aj * smsp_pulse;
 
     % --- 6. 记录参数信息 ---
     jam_info(m).M = M;              % 扫频分段数
@@ -79,6 +77,10 @@ for m = 1:data_num
 
     % --- 7. 复制到所有脉冲 ---
     pure_jam(m, :) = repmat(jam_pri, 1, Np);
+    pwr = mean(abs(pure_jam(m, :)).^2);
+    if pwr > 0
+        pure_jam(m, :) = pure_jam(m, :) / sqrt(pwr) * Aj;
+    end
 end
 
 end

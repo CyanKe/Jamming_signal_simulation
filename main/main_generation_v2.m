@@ -90,27 +90,31 @@ for current_jnr = JNR_values
     end
 
     % 提取多域特征（并行加速）
-    fprintf('正在提取特征...\n');
-    use_parallel = license('test', 'Distrib_Computing_Toolbox') && ~isempty(ver('parallel')) && SAMPLE_NUM >= 50;
-    feature_cell = cell(SAMPLE_NUM, 1);
-    features_dir = fullfile(root_path, 'utils', 'features');
-    if use_parallel
-        parfor i = 1:SAMPLE_NUM
-            addpath(features_dir);
-            feature_cell{i} = extract_signal_features(all_times(i, 1:params.PRI_samp), params.fs);
-        end
-        fprintf('  并行完成, 处理 %d 个样本\n', SAMPLE_NUM);
-    else
-        for i = 1:SAMPLE_NUM
-            feature_cell{i} = extract_signal_features(all_times(i, 1:params.PRI_samp), params.fs);
-            if mod(i, 100) == 0
-                fprintf('  已处理 %d/%d 样本\n', i, SAMPLE_NUM);
+    if cfg.output.extract_features
+        fprintf('正在提取特征...\n');
+        use_parallel = license('test', 'Distrib_Computing_Toolbox') && ~isempty(ver('parallel')) && SAMPLE_NUM >= 50;
+        feature_cell = cell(SAMPLE_NUM, 1);
+        features_dir = fullfile(root_path, 'utils', 'features');
+        if use_parallel
+            parfor i = 1:SAMPLE_NUM
+                addpath(features_dir);
+                feature_cell{i} = extract_signal_features(all_times(i, 1:params.PRI_samp), params.fs);
+            end
+            fprintf('  并行完成, 处理 %d 个样本\n', SAMPLE_NUM);
+        else
+            for i = 1:SAMPLE_NUM
+                feature_cell{i} = extract_signal_features(all_times(i, 1:params.PRI_samp), params.fs);
+                if mod(i, 100) == 0
+                    fprintf('  已处理 %d/%d 样本\n', i, SAMPLE_NUM);
+                end
             end
         end
-    end
-    all_features = feature_cell{1};
-    for i = 2:SAMPLE_NUM
-        all_features(i) = feature_cell{i};
+        all_features = feature_cell{1};
+        for i = 2:SAMPLE_NUM
+            all_features(i) = feature_cell{i};
+        end
+    else
+        fprintf('特征提取已跳过 (cfg.output.extract_features = false)\n');
     end
 
     % 根据配置设置输出路径
@@ -152,10 +156,12 @@ for current_jnr = JNR_values
     fclose(fid);
 
     % 保存特征为JSON格式
-    jsonStr = jsonencode(all_features);
-    fid = fopen(path_features, 'w', 'n', 'UTF-8');
-    fprintf(fid, '%s', jsonStr);
-    fclose(fid);
+    if cfg.output.extract_features
+        jsonStr = jsonencode(all_features);
+        fid = fopen(path_features, 'w', 'n', 'UTF-8');
+        fprintf(fid, '%s', jsonStr);
+        fclose(fid);
+    end
 
     fprintf('已保存到: %s\n', jnr_output_dir);
 end
@@ -163,7 +169,7 @@ toc
 
 fprintf('数据生成完成!\n');
 
-if SAMPLE_NUM < 40
+if SAMPLE_NUM < 50
     split_num = round(SAMPLE_NUM/4);
     for j = 0:split_num-1
     figure(j+1)

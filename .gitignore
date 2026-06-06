@@ -13,3 +13,5 @@ Thumbs.db
 **/config.m
 .claude/
 **.json
+claude.md
+output/

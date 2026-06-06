@@ -61,7 +61,8 @@ function cfg = config()
     cfg.output.dataset_type = 'test';  % 'train', 'val', 'test'
     cfg.output.use_datetime = true;    % 是否使用日期时间作为目录名
     cfg.output.custom_dirname = '';   % 自定义目录名 (优先于日期时间)
-
+    cfg.output.extract_features = false;  % 是否提取多域特征 (耗时较长时可关闭)
+    
     % ==================== 样本生成参数 ====================
     cfg.generation.SAMPLE_NUM_S = 100;   % 单一干扰样本数
     cfg.generation.SAMPLE_NUM_M = 100;  % 混合干扰样本数

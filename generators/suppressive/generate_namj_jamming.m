@@ -1,8 +1,17 @@
 function [pure_jam] = generate_namj_jamming(tx, params, data_num)
-    % 解包参数
+    % generate_csj_jamming - 生成噪声调幅干扰(Noise Amplitude Modulation Jamming, NAMJ) 
+    % tx: 包含 LFM 信号的发射数据
+    % params: 参数结构体 (需包含 fs, N_total, JNR, PRI_samp, Ntau, Np, pos, M)
+    % data_num: 生成样本数
+    % 输出:
+    %   pure_jam - 干扰信号
+    %   jam_info - 干扰参数信息 (用于metadata记录)
+
+    % --- 解包参数 ---
+    Aj = 10^(params.JNR/20);  % 干扰幅度
     fs = params.fs;
     N_total = params.N_total;
-    Aj = 10^(params.JNR/20);  % 干扰幅度
+    
     params.random_Fj = true ;
     params.random_m_a = true ;
     params.random_BW = true ;

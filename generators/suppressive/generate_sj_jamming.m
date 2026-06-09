@@ -1,57 +1,62 @@
-% ==========================================================
-% generate_spot_jamming.m - 生成瞄准式干扰样本
-% ==========================================================
 function [pure_jam] = generate_sj_jamming(tx, params, data_num)
-% 解包参数
-fs = params.fs;
-N_total = params.N_total;
-As = 10^(params.SNR/20);
-Aj = 10^(params.JNR/20);
-Bj = params.BJ; % 瞄准带宽
-fjc = 0;   % 干扰中心频率
+    % generate_sj_jamming - 生成扫频干扰(Sweeping Jamming, SJ) 
+    % tx: 包含 LFM 信号的发射数据
+    % params: 参数结构体 (需包含 fs, N_total, JNR, PRI_samp, Ntau, Np, pos, M)
+    % data_num: 生成样本数
+    % 输出:
+    %   pure_jam - 干扰信号
+    %   jam_info - 干扰参数信息 (用于metadata记录)
 
-% 初始化输出
-% samples = zeros(data_num, N_total);
-% labels = ones(data_num, 1) * label;
-pure_jam = zeros(data_num, N_total);
-for m = 1:data_num
-    % % --- 生成噪声 ---
-    % white_noise = randn([1,N_total]) + 1j*randn([1,N_total]);
-    % white_noise = white_noise / std(white_noise); % 标准化
+    % --- 解包参数 ---
+    fs = params.fs;
+    N_total = params.N_total;
+    As = 10^(params.SNR/20);
+    Aj = 10^(params.JNR/20);
+    Bj = params.BJ; % 瞄准带宽
+    fjc = 0;   % 干扰中心频率
 
-    % --- 生成扫频干扰 ---
-    T_sweep=20*1e-6+round((rand(1,1)*20))*1e-6;%扫频周期20-40us
-    B1 = 80e6;                 % 设置为80MHz
-    f0 = -B1/2;                % 起始频率（相对基带）
-    K = B1 / T_sweep;          % 调频斜率
-    tj = (0:N_total-1)/fs;     % 时间轴
+    % 初始化输出
+    % samples = zeros(data_num, N_total);
+    % labels = ones(data_num, 1) * label;
+    pure_jam = zeros(data_num, N_total);
+    for m = 1:data_num
+        % % --- 生成噪声 ---
+        % white_noise = randn([1,N_total]) + 1j*randn([1,N_total]);
+        % white_noise = white_noise / std(white_noise); % 标准化
 
-    % 将时间折返到每个扫频周期内
-    t_mod = mod(tj, T_sweep);
+        % --- 生成扫频干扰 ---
+        T_sweep=20*1e-6+round((rand(1,1)*20))*1e-6;%扫频周期20-40us
+        B1 = 80e6;                 % 设置为80MHz
+        f0 = -B1/2;                % 起始频率（相对基带）
+        K = B1 / T_sweep;          % 调频斜率
+        tj = (0:N_total-1)/fs;     % 时间轴
 
-    % 生成扫频载波（周期性线性调频）
-    sweep_carrier = exp(1j*2*pi*(f0*t_mod + 0.5*K*t_mod.^2));
+        % 将时间折返到每个扫频周期内
+        t_mod = mod(tj, T_sweep);
 
-    % 叠加宽带噪声包络（可选）
-    sp = randn([1,N_total]) + 1j*randn([1,N_total]);
-    sp = sp / std(sp);
-    lpFilt = fir1(34, Bj/fs, chebwin(35,30));
-    sp_env = filter(lpFilt, 1, sp);
-    sp_env = sp_env / std(sp_env);  % FIR滤波后功率归一化
+        % 生成扫频载波（周期性线性调频）
+        sweep_carrier = exp(1j*2*pi*(f0*t_mod + 0.5*K*t_mod.^2));
 
-    % 扫频干扰信号
-    sp_j = sweep_carrier .* sp_env;
-    jam_signal = Aj * (sp_j .* exp(1j*2*pi*fjc*tj));
+        % 叠加宽带噪声包络（可选）
+        sp = randn([1,N_total]) + 1j*randn([1,N_total]);
+        sp = sp / std(sp);
+        lpFilt = fir1(34, Bj/fs, chebwin(35,30));
+        sp_env = filter(lpFilt, 1, sp);
+        sp_env = sp_env / std(sp_env);  % FIR滤波后功率归一化
 
-    pure_jam(m,:) = jam_signal;
+        % 扫频干扰信号
+        sp_j = sweep_carrier .* sp_env;
+        jam_signal = Aj * (sp_j .* exp(1j*2*pi*fjc*tj));
 
-    % % --- 混合信号 ---
-    % pure_echo = As * tx;
-    % rx = pure_echo + jam_signal + white_noise;
-    % 
-    % % --- 归一化 (防止梯度爆炸) ---
-    % rx = rx / max(abs(rx));
-    % 
-    % samples(m, :) = rx;
-end
+        pure_jam(m,:) = jam_signal;
+
+        % % --- 混合信号 ---
+        % pure_echo = As * tx;
+        % rx = pure_echo + jam_signal + white_noise;
+        % 
+        % % --- 归一化 (防止梯度爆炸) ---
+        % rx = rx / max(abs(rx));
+        % 
+        % samples(m, :) = rx;
+    end
 end

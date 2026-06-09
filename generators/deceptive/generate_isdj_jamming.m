@@ -1,6 +1,6 @@
-function [pure_jam,bbox_info,jam_info] = generate_isrj_jamming(tx, params, data_num)
-    % generate_isrj_jamming - 生成间歇采样干扰
-    % https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=9173164
+function [pure_jam,bbox_info,jam_info] = generate_isdj_jamming(tx, params, data_num)
+    % generate_isdj_jamming - 生成间歇采样直接干扰
+    % Hatahet A F, Hassan H A B, Kader F M A, et al. Performance analysis of LFM radar in presence of different interrupted sampling jamming techniques[C]//2023 International Telecommunications Conference (ITC-Egypt). IEEE, 2023: 557-562.
     % tx: 包含 LFM 信号的发射数据
     % params: 参数结构体 (需包含 fs, N_total, JNR, PRI_samp, Ntau, Np, pos, M)
     % data_num: 生成样本数
@@ -40,11 +40,8 @@ function [pure_jam,bbox_info,jam_info] = generate_isrj_jamming(tx, params, data_
         % index2 = randi([1 4]);      % 随机选择占空比 (索引1到4)
         % M = repetition_times_arr(index2);
 
-
-
-        M = randi([2 4]); %转发次数
-        N = randi([2 4]); %采样次数
-        % M = 4;N = 3;
+        M = 1; %转发次数,只转发一次
+        N = randi([3 4]); %采样次数
 
         % --- 2. 生成采样方波并对LFM信号进行切片 ---
         % 使用与LFM脉冲相同的时间轴ttau来生成方波

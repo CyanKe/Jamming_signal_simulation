@@ -1,111 +1,111 @@
 function [pure_jam, jam_info] = generate_vgpo_jamming(tx, params, data_num)
-% generate_vgpo_jamming - 生成速度拖引干扰
-% 输出:
-%   pure_jam - 干扰信号
-%   jam_info - 干扰参数信息 (用于metadata记录)
-% 可控参数 (通过params传递):
-%   fd_rate     - 多普勒频率拖引率 (Hz/s)，默认 10kHz/s
-%   start_time  - 起始时间 (s)，控制信号所属阶段，默认 0
-%                 - start_time < 2ms: 捕获阶段
-%                 - 2ms <= start_time < 12ms: 拖引阶段
-%                 - start_time >= 12ms: 停止阶段
+    % generate_vgpo_jamming - 生成速度门拖引干扰(Velocity Gate Pull-Off, VGPO)
+    % 输出:
+    %   pure_jam - 干扰信号
+    %   jam_info - 干扰参数信息 (用于metadata记录)
+    % 可控参数 (通过params传递):
+    %   fd_rate     - 多普勒频率拖引率 (Hz/s)，默认 10kHz/s
+    %   start_time  - 起始时间 (s)，控制信号所属阶段，默认 0
+    %                 - start_time < 2ms: 捕获阶段
+    %                 - 2ms <= start_time < 12ms: 拖引阶段
+    %                 - start_time >= 12ms: 停止阶段
 
-% 解包参数
-fs = params.fs;             % 采样率
-N_total = params.N_total;   % 总采样点数
-Aj = 10^(params.JNR/20);    % 干扰信号幅度
-PRI_samp = params.PRI_samp; % 每个PRI的采样点数
-Ntau = params.Ntau;         % 脉冲宽度对应的采样点数
-Np = params.Np;             % 脉冲个数
-real_pos_in_pri = params.pos; % 真实目标在PRI内的起始位置
+    % 解包参数
+    fs = params.fs;             % 采样率
+    N_total = params.N_total;   % 总采样点数
+    Aj = 10^(params.JNR/20);    % 干扰信号幅度
+    PRI_samp = params.PRI_samp; % 每个PRI的采样点数
+    Ntau = params.Ntau;         % 脉冲宽度对应的采样点数
+    Np = params.Np;             % 脉冲个数
+    real_pos_in_pri = params.pos; % 真实目标在PRI内的起始位置
 
-% --- VGPO拖引参数 ---
-% 多普勒频率拖引率 (Hz/s)，假目标的多普勒频率每秒变化量
-% 支持 fd_rate 或 pull 参数名
-if isfield(params, 'fd_rate')
-    fd_rate = params.fd_rate;
-elseif isfield(params, 'pull')
-    fd_rate = params.pull;  % 兼容配置文件中的 pull 参数
-else
-    fd_rate = 10e3;  % 默认 10kHz/s (0.01MHz/s)
-end
-
-% 起始时间 (秒)，用于控制信号所属阶段
-% 与Np解耦，直接指定干扰信号的起始时间点
-% - start_time < capture_time: 捕获阶段 (fd=0)
-% - capture_time <= start_time < capture_time+pull_off_time: 拖引阶段
-% - start_time >= capture_time+pull_off_time: 停止阶段 (无干扰)
-if isfield(params, 'start_time')
-    start_time = params.start_time;
-else
-    start_time = 0;  % 默认从捕获阶段开始
-end
-
-% 三阶段时长 (秒)
-capture_time = 2e-3;   % 捕获阶段 2ms
-pull_off_time = 10e-3; % 拖引阶段 10ms
-% cessation阶段不发射干扰，总时长 2ms
-
-% 初始化输出
-pure_jam = zeros(data_num, N_total);
-jam_info = struct('fd_rate', {}, 'doppler_direction', {}, 'final_fd_kHz', {});
-t_pulse = (0:Ntau-1) / fs;  % 脉冲内时间轴
-
-for m = 1:data_num
-    jam_signal = zeros(1, N_total);
-
-    % 随机选择多普勒拖引方向（正向增加或负向减少）
-    doppler_sign = randi([0, 1]);
-    if doppler_sign == 0
-        doppler_direction = 'up';    % 多普勒频率向上拖引
+    % --- VGPO拖引参数 ---
+    % 多普勒频率拖引率 (Hz/s)，假目标的多普勒频率每秒变化量
+    % 支持 fd_rate 或 pull 参数名
+    if isfield(params, 'fd_rate')
+        fd_rate = params.fd_rate;
+    elseif isfield(params, 'pull')
+        fd_rate = params.pull;  % 兼容配置文件中的 pull 参数
     else
-        doppler_direction = 'down';  % 多普勒频率向下拖引
-        fd_rate = -fd_rate;          % 反向拖引
+        fd_rate = 10e3;  % 默认 10kHz/s (0.01MHz/s)
     end
 
-    % 获取LFM脉冲模板
-    lfm_template = tx(1, real_pos_in_pri : real_pos_in_pri + Ntau - 1);
+    % 起始时间 (秒)，用于控制信号所属阶段
+    % 与Np解耦，直接指定干扰信号的起始时间点
+    % - start_time < capture_time: 捕获阶段 (fd=0)
+    % - capture_time <= start_time < capture_time+pull_off_time: 拖引阶段
+    % - start_time >= capture_time+pull_off_time: 停止阶段 (无干扰)
+    if isfield(params, 'start_time')
+        start_time = params.start_time;
+    else
+        start_time = 0;  % 默认从捕获阶段开始
+    end
 
-    % 处理每个脉冲
-    for p = 0:(Np-1)
-        pri_start_idx = p * PRI_samp + 1;
-        % 使用start_time作为起始时间，与Np解耦
-        current_time_s = start_time + p * (PRI_samp / fs);
+    % 三阶段时长 (秒)
+    capture_time = 2e-3;   % 捕获阶段 2ms
+    pull_off_time = 10e-3; % 拖引阶段 10ms
+    % cessation阶段不发射干扰，总时长 2ms
 
-        % --- 判断当前处于哪个阶段 ---
-        if current_time_s < capture_time
-            % 捕获阶段：fd=0，与真实目标重合
-            fd = 0;
-        elseif current_time_s < capture_time + pull_off_time
-            % 拖引阶段：多普勒频率逐渐增加
-            time_in_pull_off = current_time_s - capture_time;
-            fd = fd_rate * time_in_pull_off;
+    % 初始化输出
+    pure_jam = zeros(data_num, N_total);
+    jam_info = struct('fd_rate', {}, 'doppler_direction', {}, 'final_fd_kHz', {});
+    t_pulse = (0:Ntau-1) / fs;  % 脉冲内时间轴
+
+    for m = 1:data_num
+        jam_signal = zeros(1, N_total);
+
+        % 随机选择多普勒拖引方向（正向增加或负向减少）
+        doppler_sign = randi([0, 1]);
+        if doppler_sign == 0
+            doppler_direction = 'up';    % 多普勒频率向上拖引
         else
-            % 停止阶段：不发射干扰
-            continue;
+            doppler_direction = 'down';  % 多普勒频率向下拖引
+            fd_rate = -fd_rate;          % 反向拖引
         end
 
-        % 多普勒调制
-        doppler_mod = exp(1j * 2 * pi * fd * t_pulse);
-        jam_pulse = Aj * lfm_template .* doppler_mod;
+        % 获取LFM脉冲模板
+        lfm_template = tx(1, real_pos_in_pri : real_pos_in_pri + Ntau - 1);
 
-        % 放置到对应位置
-        abs_start_idx = pri_start_idx + real_pos_in_pri - 1;
-        abs_end_idx = abs_start_idx + Ntau - 1;
-        jam_signal(abs_start_idx:abs_end_idx) = jam_pulse;
+        % 处理每个脉冲
+        for p = 0:(Np-1)
+            pri_start_idx = p * PRI_samp + 1;
+            % 使用start_time作为起始时间，与Np解耦
+            current_time_s = start_time + p * (PRI_samp / fs);
+
+            % --- 判断当前处于哪个阶段 ---
+            if current_time_s < capture_time
+                % 捕获阶段：fd=0，与真实目标重合
+                fd = 0;
+            elseif current_time_s < capture_time + pull_off_time
+                % 拖引阶段：多普勒频率逐渐增加
+                time_in_pull_off = current_time_s - capture_time;
+                fd = fd_rate * time_in_pull_off;
+            else
+                % 停止阶段：不发射干扰
+                continue;
+            end
+
+            % 多普勒调制
+            doppler_mod = exp(1j * 2 * pi * fd * t_pulse);
+            jam_pulse = Aj * lfm_template .* doppler_mod;
+
+            % 放置到对应位置
+            abs_start_idx = pri_start_idx + real_pos_in_pri - 1;
+            abs_end_idx = abs_start_idx + Ntau - 1;
+            jam_signal(abs_start_idx:abs_end_idx) = jam_pulse;
+        end
+
+        % 计算最终多普勒频率
+        final_fd = fd_rate * pull_off_time;  % 拖引结束时的多普勒频率
+        final_fd_kHz = abs(final_fd) / 1e3;   % 转换为kHz
+
+        % 记录当前样本的参数信息
+        jam_info(m).fd_rate = abs(fd_rate);     % 多普勒频率拖引率 (Hz/s)
+        jam_info(m).doppler_direction = doppler_direction;  % 拖引方向
+        jam_info(m).final_fd_kHz = final_fd_kHz;            % 最终多普勒频率(kHz)
+        jam_info(m).start_time = start_time;                % 起始时间(s)
+
+        pure_jam(m,:) = jam_signal;
+        pure_jam(m,:) = pure_jam(m,:) / sqrt(mean(abs(pure_jam(m,:)).^2)) * Aj;
     end
-
-    % 计算最终多普勒频率
-    final_fd = fd_rate * pull_off_time;  % 拖引结束时的多普勒频率
-    final_fd_kHz = abs(final_fd) / 1e3;   % 转换为kHz
-
-    % 记录当前样本的参数信息
-    jam_info(m).fd_rate = abs(fd_rate);     % 多普勒频率拖引率 (Hz/s)
-    jam_info(m).doppler_direction = doppler_direction;  % 拖引方向
-    jam_info(m).final_fd_kHz = final_fd_kHz;            % 最终多普勒频率(kHz)
-    jam_info(m).start_time = start_time;                % 起始时间(s)
-
-    pure_jam(m,:) = jam_signal;
-    pure_jam(m,:) = pure_jam(m,:) / sqrt(mean(abs(pure_jam(m,:)).^2)) * Aj;
-end
 end

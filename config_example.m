@@ -15,7 +15,7 @@ function cfg = config()
     cfg.signal.pos = 5000;          % 目标在PRI中的起始位置
 
     % ==================== 干扰参数 ====================
-    cfg.jamming.numClasses = 14;    % 基础干扰类型数量
+    cfg.jamming.numClasses = 17;    % 基础干扰类型数量 (8 deceptive + 9 suppressive)
     cfg.jamming.JNR_values = 10;   % 干噪比范围 dB (可以是标量或数组如 0:5:20)
 
     % ==================== 各干扰类型的特定参数 ====================
@@ -70,12 +70,12 @@ function cfg = config()
 
     % ==================== 组合干扰生成配置 ====================
     % 欺骗式干扰类型列表
-    cfg.jamming.deceptive_types = {'CSJ', 'DFTJ', 'ISRJ', 'C&IJ', 'SMSPJ'};
+    cfg.jamming.deceptive_types = {'CSJ', 'DFTJ', 'ISRJ', 'ISCJ', 'MISRJ', 'ISDJ', 'C&IJ', 'SMSPJ'};
     % 压制干扰类型列表
     cfg.jamming.suppressive_types = {'AJ', 'BJ', 'SJ', 'PJ', 'NCJ', 'NPJ', 'NFMJ', 'NPMJ', 'NAMJ'};
 
     % 要组合的欺骗干扰 (设为[]使用全部，设为{'none'}跳过自动组合)
-    cfg.jamming.combo_deceptive = {'CSJ', 'DFTJ', 'ISRJ', 'C&IJ', 'SMSPJ'};
+    cfg.jamming.combo_deceptive = {'CSJ', 'DFTJ', 'ISRJ', 'ISCJ', 'MISRJ', 'C&IJ', 'SMSPJ'};
     % 要组合的压制干扰 (设为[]使用全部)
     cfg.jamming.combo_suppressive = {'AJ', 'BJ', 'SJ', 'PJ', 'NCJ', 'NPJ', 'NFMJ', 'NPMJ', 'NAMJ'};
 
@@ -90,6 +90,9 @@ function cfg = config()
         'CSJ'  ,  cfg.generation.SAMPLE_NUM_S;
         'DFTJ' ,  cfg.generation.SAMPLE_NUM_S;
         'ISRJ' ,  cfg.generation.SAMPLE_NUM_S;
+        'ISCJ' ,  cfg.generation.SAMPLE_NUM_S;
+        'MISRJ',  cfg.generation.SAMPLE_NUM_S;
+        'ISDJ' ,  cfg.generation.SAMPLE_NUM_S;
         'C&IJ' ,  cfg.generation.SAMPLE_NUM_S;
         'SMSPJ',  cfg.generation.SAMPLE_NUM_S;
 

@@ -43,8 +43,10 @@ for current_jnr = JNR_values
     fprintf('当前 JNR = %d dB\n', current_jnr);
     all_times = zeros(SAMPLE_NUM, params.PRI_samp);
     all_label = zeros(SAMPLE_NUM, params.numClasses);
-    N_cols = floor((params.N_total - Noverlap) / Step);
-    all_stfts = zeros(SAMPLE_NUM, Nfft, N_cols);
+    if cfg.output.save_stft
+        N_cols = floor((params.N_total - Noverlap) / Step);
+        all_stfts = zeros(SAMPLE_NUM, Nfft, N_cols);
+    end
 
     % 初始化metadata数组
     all_metadata = struct('sample_idx', {}, 'jam_types', {}, 'JNR', {}, 'pos', {}, 'jam_params', {});
@@ -84,9 +86,11 @@ for current_jnr = JNR_values
     end
 
     % 计算STFT
-    for i = 1:SAMPLE_NUM
-        [S, F, T] = spectrogram(all_times(i, 1:params.PRI_samp), Nwin, Noverlap, Nfft, params.fs, 'centered');
-        all_stfts(i, :, :) = S;
+    if cfg.output.save_stft
+        for i = 1:SAMPLE_NUM
+            [S, F, T] = spectrogram(all_times(i, 1:params.PRI_samp), Nwin, Noverlap, Nfft, params.fs, 'centered');
+            all_stfts(i, :, :) = S;
+        end
     end
 
     % 提取多域特征（并行加速）
@@ -127,9 +131,11 @@ for current_jnr = JNR_values
     path_plan_json = fullfile(jnr_output_dir, 'generation_plan.json');
 
     % 保存数据
-    all_stfts = single(all_stfts);
+    if cfg.output.save_stft
+        all_stfts = single(all_stfts);
+        save(path_stfts, 'all_stfts', '-v7.3');
+    end
     all_times = single(all_times);
-    save(path_stfts, 'all_stfts', '-v7.3');
     save(path_times, 'all_times', '-v7.3');
     save(path_plan_mat, 'generation_plan', '-v7.3');
 
@@ -181,13 +187,15 @@ if SAMPLE_NUM < 50
         ylabel('幅度');
         grid on;
 
-        subplot(2,4,4+i)
-        imagesc(T*1e6, F/1e6, abs((squeeze(all_stfts(4*j+i,:,:)))) + eps);
-        % colormap(Londres)
-        axis xy;
-        xlabel('时间 (us)');
-        ylabel('频率 (MHz)');
-        grid on;
+        if cfg.output.save_stft
+            subplot(2,4,4+i)
+            imagesc(T*1e6, F/1e6, abs((squeeze(all_stfts(4*j+i,:,:)))) + eps);
+            % colormap(Londres)
+            axis xy;
+            xlabel('时间 (us)');
+            ylabel('频率 (MHz)');
+            grid on;
+        end
 
     end
     end

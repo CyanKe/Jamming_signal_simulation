@@ -43,7 +43,8 @@ for current_jnr = JNR_values
     fprintf('当前 JNR = %d dB\n', current_jnr);
     all_times = zeros(SAMPLE_NUM, params.PRI_samp);
     all_label = zeros(SAMPLE_NUM, params.numClasses);
-    if cfg.output.save_stft
+    need_stft = cfg.output.save_stft || cfg.output.save_persistence;
+    if need_stft
         N_cols = floor((params.N_total - Noverlap) / Step);
         all_stfts = zeros(SAMPLE_NUM, Nfft, N_cols);
     end
@@ -85,12 +86,31 @@ for current_jnr = JNR_values
         all_metadata(point_l:point_r) = new_metadata;
     end
 
-    % 计算STFT
-    if cfg.output.save_stft
+    % 计算STFT (持续时间谱也需要STFT)
+    if need_stft
+        fprintf('正在计算STFT (%d 样本)...\n', SAMPLE_NUM);
+        t_stft = tic;
         for i = 1:SAMPLE_NUM
             [S, F, T] = spectrogram(all_times(i, 1:params.PRI_samp), Nwin, Noverlap, Nfft, params.fs, 'centered');
             all_stfts(i, :, :) = S;
         end
+        fprintf('  STFT耗时: %.2f s\n', toc(t_stft));
+    end
+
+    % 计算持续时间谱 (Persistence Spectrum)
+    if cfg.output.save_persistence
+        fprintf('正在计算持续时间谱 (%d 样本)...\n', SAMPLE_NUM);
+        t_pers = tic;
+        num_power_bins = cfg.persistence.num_power_bins;
+        all_persistences = zeros(SAMPLE_NUM, Nfft, num_power_bins);
+        % 第一个样本获取power_centers用于后续保存
+        [all_persistences(1, :, :), ~, power_centers] = compute_duration_spectrum( ...
+            squeeze(all_stfts(1, :, :)), num_power_bins);
+        for i = 2:SAMPLE_NUM
+            all_persistences(i, :, :) = compute_duration_spectrum( ...
+                squeeze(all_stfts(i, :, :)), num_power_bins);
+        end
+        fprintf('  持续时间谱耗时: %.2f s\n', toc(t_pers));
     end
 
     % 提取多域特征（并行加速）
@@ -124,6 +144,7 @@ for current_jnr = JNR_values
     % 根据配置设置输出路径
     dataset_type = cfg.output.dataset_type;
     path_stfts = fullfile(jnr_output_dir, sprintf('%s_echo_stfts.mat', dataset_type));
+    path_persistences = fullfile(jnr_output_dir, sprintf('%s_echo_persistences.mat', dataset_type));
     path_times = fullfile(jnr_output_dir, sprintf('%s_echo_times.mat', dataset_type));
     path_metadata = fullfile(jnr_output_dir, sprintf('%s_echo_metadata.json', dataset_type));
     path_features = fullfile(jnr_output_dir, sprintf('%s_echo_features.json', dataset_type));
@@ -134,6 +155,10 @@ for current_jnr = JNR_values
     if cfg.output.save_stft
         all_stfts = single(all_stfts);
         save(path_stfts, 'all_stfts', '-v7.3');
+    end
+    if cfg.output.save_persistence
+        all_persistences = single(all_persistences);
+        save(path_persistences, 'all_persistences', 'num_power_bins', 'power_centers', '-v7.3');
     end
     all_times = single(all_times);
     save(path_times, 'all_times', '-v7.3');
@@ -176,27 +201,48 @@ toc
 fprintf('数据生成完成!\n');
 
 if SAMPLE_NUM < 50
-    split_num = round(SAMPLE_NUM/4);
+    % 根据启用的可视化类型确定行数
+    has_stft  = cfg.output.save_stft && exist('all_stfts','var');
+    has_pers  = cfg.output.save_persistence && exist('all_persistences','var');
+    num_rows  = 1 + has_stft + has_pers;  % 时域始终显示
+
+    split_num = ceil(SAMPLE_NUM/4);
     for j = 0:split_num-1
-    figure(j+1)
-    for i = 1:4
-        subplot(2,4,i)
-        t_axis = params.t_total;% 时间轴 us
-        plot(t_axis, real(all_times(4*j+i,:)));
-        xlabel('时间 (us)');
-        ylabel('幅度');
-        grid on;
+        figure(j+1)
+        for i = 1:4
+            sample_idx = 4*j + i;
+            if sample_idx > SAMPLE_NUM, break; end
 
-        if cfg.output.save_stft
-            subplot(2,4,4+i)
-            imagesc(T*1e6, F/1e6, abs((squeeze(all_stfts(4*j+i,:,:)))) + eps);
-            % colormap(Londres)
-            axis xy;
-            xlabel('时间 (us)');
-            ylabel('频率 (MHz)');
-            grid on;
+            % --- 行1: 时域 ---
+            subplot(num_rows, 4, i)
+            t_axis = params.t_total;
+            plot(t_axis, real(all_times(sample_idx,:)));
+            xlabel('时间 (us)'); ylabel('幅度'); grid on;
+
+            % --- 行2: STFT (优先) 或 持续时间谱 ---
+            if has_stft
+                subplot(num_rows, 4, 4 + i)
+                imagesc(T*1e6, F/1e6, abs((squeeze(all_stfts(sample_idx,:,:)))) + eps);
+                axis xy;
+                set(gca, 'YDir', 'normal');
+                xlabel('时间 (us)'); ylabel('频率 (MHz)');
+                title('短时傅里叶变换'); grid on;colorbar;
+            elseif has_pers
+                subplot(num_rows, 4, 4 + i)
+                imagesc(1:Nfft, power_centers, squeeze(all_persistences(sample_idx,:,:))');
+                set(gca, 'YDir', 'normal');
+                xlabel('频率bin'); ylabel('功率 (dB)');
+                title('持续时间谱'); colorbar;
+            end
+
+            % --- 行3: 持续时间谱 (仅在STFT也存在时) ---
+            if has_stft && has_pers
+                subplot(num_rows, 4, 8 + i)
+                imagesc(1:Nfft, power_centers, squeeze(all_persistences(sample_idx,:,:))');
+                set(gca, 'YDir', 'normal');
+                xlabel('频率bin'); ylabel('功率 (dB)');
+                title('持续时间谱'); colorbar;
+            end
         end
-
-    end
     end
 end

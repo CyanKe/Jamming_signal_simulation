@@ -90,8 +90,9 @@ for current_jnr = JNR_values
     if need_stft
         fprintf('正在计算STFT (%d 样本)...\n', SAMPLE_NUM);
         t_stft = tic;
+        win = hamming(Nwin);  % Hamming窗抑制频谱泄漏
         for i = 1:SAMPLE_NUM
-            [S, F, T] = spectrogram(all_times(i, 1:params.PRI_samp), Nwin, Noverlap, Nfft, params.fs, 'centered');
+            [S, F, T] = spectrogram(all_times(i, 1:params.PRI_samp), win, Noverlap, Nfft, params.fs, 'centered');
             all_stfts(i, :, :) = S;
         end
         fprintf('  STFT耗时: %.2f s\n', toc(t_stft));
@@ -102,13 +103,16 @@ for current_jnr = JNR_values
         fprintf('正在计算持续时间谱 (%d 样本)...\n', SAMPLE_NUM);
         t_pers = tic;
         num_power_bins = cfg.persistence.num_power_bins;
+        % 从第一个样本确定全局功率范围 (用百分位数+余量避免削顶)
+        pow_db1 = 10 * log10(abs(squeeze(all_stfts(1, :, :))).^2 + eps);
+        pwr_lo = prctile(pow_db1(:), 1);   % 1%分位 (避免噪声毛刺)
+        pwr_hi = prctile(pow_db1(:), 100);  % 99%分位 (避免孤立尖峰)
+        margin = 3;  % ±3 dB 余量, 覆盖样本间差异
+        global_pwr_range = [pwr_lo - margin, pwr_hi + margin];
         all_persistences = zeros(SAMPLE_NUM, Nfft, num_power_bins);
-        % 第一个样本获取power_centers用于后续保存
-        [all_persistences(1, :, :), ~, power_centers] = compute_duration_spectrum( ...
-            squeeze(all_stfts(1, :, :)), num_power_bins);
-        for i = 2:SAMPLE_NUM
-            all_persistences(i, :, :) = compute_duration_spectrum( ...
-                squeeze(all_stfts(i, :, :)), num_power_bins);
+        for i = 1:SAMPLE_NUM
+            [all_persistences(i, :, :), ~, power_centers] = compute_duration_spectrum( ...
+                squeeze(all_stfts(i, :, :)), num_power_bins, global_pwr_range);
         end
         fprintf('  持续时间谱耗时: %.2f s\n', toc(t_pers));
     end
@@ -158,7 +162,7 @@ for current_jnr = JNR_values
     end
     if cfg.output.save_persistence
         all_persistences = single(all_persistences);
-        save(path_persistences, 'all_persistences', 'num_power_bins', 'power_centers', '-v7.3');
+        save(path_persistences, 'all_persistences', 'num_power_bins', 'power_centers', 'F', '-v7.3');
     end
     all_times = single(all_times);
     save(path_times, 'all_times', '-v7.3');
@@ -229,18 +233,18 @@ if SAMPLE_NUM < 100
                 title('短时傅里叶变换'); grid on;colorbar;
             elseif has_pers
                 subplot(num_rows, 4, 4 + i)
-                imagesc(1:Nfft, power_centers, squeeze(all_persistences(sample_idx,:,:))');
+                imagesc(F/1e6, power_centers, squeeze(all_persistences(sample_idx,:,:))');
                 set(gca, 'YDir', 'normal');
-                xlabel('频率bin'); ylabel('功率 (dB)');
+                xlabel('频率 (MHz)'); ylabel('功率 (dB)');
                 title('持续时间谱'); colorbar;
             end
 
             % --- 行3: 持续时间谱 (仅在STFT也存在时) ---
             if has_stft && has_pers
                 subplot(num_rows, 4, 8 + i)
-                imagesc(1:Nfft, power_centers, squeeze(all_persistences(sample_idx,:,:))');
+                imagesc(F/1e6, power_centers, squeeze(all_persistences(sample_idx,:,:))');
                 set(gca, 'YDir', 'normal');
-                xlabel('频率bin'); ylabel('功率 (dB)');
+                xlabel('频率 (MHz)'); ylabel('功率 (dB)');
                 title('持续时间谱'); colorbar;
             end
         end

@@ -42,15 +42,11 @@ function [persistence_spectrum, power_edges, power_centers] = compute_duration_s
     power_edges = linspace(min_p, max_p, num_power_bins + 1);
     power_centers = (power_edges(1:end-1) + power_edges(2:end)) / 2;
 
-    % 4. 逐频率统计直方图
-    Ntime = size(stft_mat, 2);
+    % 4. 逐频率统计直方图 (probability归一化)
     persistence_spectrum = zeros(Nfreq, num_power_bins);
 
     for f = 1:Nfreq
-        counts = histcounts(mag_dB(f, :), power_edges);
+        counts = histcounts(mag_dB(f, :), power_edges, 'Normalization', 'probability');
         persistence_spectrum(f, :) = counts;
     end
-
-    % 5. 归一化: 每行除以时间点数, 转为占比 [0,1]
-    persistence_spectrum = persistence_spectrum ./ Ntime;
 end

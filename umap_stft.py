@@ -97,6 +97,16 @@ def load_times(mat_path):
     return np.abs(arr)
 
 
+def load_persistence(mat_path):
+    """Load persistence spectrum .mat (real-valued), return (N, freq, power_bins)."""
+    with h5py.File(mat_path, 'r') as f:
+        data = f['all_persistences']
+        arr = data[:]
+        # MATLAB stores column-major; transpose to (samples, ...)
+        arr = np.transpose(arr, tuple(range(arr.ndim - 1, -1, -1)))
+    return np.array(arr, dtype=np.float32)
+
+
 def normalize_label(raw_label):
     return raw_label.replace('C&IJ', 'CIJ')
 
@@ -122,7 +132,7 @@ def preprocess(data, mode, pca_dim, data_type):
     """Preprocess data for UMAP. Returns features array."""
     n_samples = data.shape[0]
 
-    if data_type == 'stft':
+    if data_type == 'stft' or data_type == 'persistence':
         _, n_freq, n_time = data.shape
         if mode == 'avg_time':
             features = np.mean(data, axis=2)
@@ -141,7 +151,7 @@ def preprocess(data, mode, pca_dim, data_type):
             desc = (f'PCA({flat.shape[1]}->{pca.n_components_}), '
                     f'var={pca.explained_variance_ratio_.sum():.2%}')
         else:
-            raise ValueError(f'Unknown mode for STFT: {mode}')
+            raise ValueError(f'Unknown mode for {data_type}: {mode}')
     else:  # times
         _, n_time = data.shape
         if mode == 'avg_time':
@@ -239,13 +249,14 @@ def main():
     # Single-file mode
     parser.add_argument('--stft', type=str, default=None, help='Single STFT .mat path')
     parser.add_argument('--times', type=str, default=None, help='Single time-domain .mat path')
+    parser.add_argument('--persistence', type=str, default=None, help='Single persistence .mat path')
     parser.add_argument('--meta', type=str, default=None, help='Single metadata .json path')
     # Multi-JNR mode
     parser.add_argument('--dir', type=str, default=None, help='Base output directory')
     parser.add_argument('--dataset', type=str, default='test', help='Dataset split name')
     parser.add_argument('--jnr', type=str, default=None, help='JNR spec: 10, 0:5:20, 0:20')
-    parser.add_argument('--type', type=str, default='stft', choices=['stft', 'times'],
-                        help='Data type: stft (default) or times')
+    parser.add_argument('--type', type=str, default='stft', choices=['stft', 'times', 'persistence'],
+                        help='Data type: stft (default), times, or persistence')
     # Common
     parser.add_argument('--mode', type=str, default='avg_time',
                         help='Preprocessing mode (default: avg_time; for times: avg_time=pca)')
@@ -268,8 +279,12 @@ def main():
 
     if args.dir and args.jnr:
         jnr_list = parse_jnr_range(args.jnr)
-        suffix = 'stfts' if data_type == 'stft' else 'times'
-        loader = load_stft if data_type == 'stft' else load_times
+        if data_type == 'stft':
+            suffix = 'stfts'; loader = load_stft
+        elif data_type == 'persistence':
+            suffix = 'persistences'; loader = load_persistence
+        else:
+            suffix = 'times'; loader = load_times
         print(f'\n{"=" * 60}')
         print(f'Data type: {data_type}')
         print(f'Directory: {args.dir}')
@@ -306,7 +321,7 @@ def main():
         print(f'  Total: {len(all_labels)} samples, shape={all_data.shape} from JNR=[{", ".join(loaded_jnr)}]')
 
     else:
-        # Single-file mode: determine source from --stft or --times
+        # Single-file mode: determine source from --stft, --times, or --persistence
         if args.stft and args.meta:
             data_path, meta_path = args.stft, args.meta
             data_type = 'stft'
@@ -315,8 +330,12 @@ def main():
             data_path, meta_path = args.times, args.meta
             data_type = 'times'
             loader = load_times
+        elif args.persistence and args.meta:
+            data_path, meta_path = args.persistence, args.meta
+            data_type = 'persistence'
+            loader = load_persistence
         else:
-            parser.error('Use --stft/--meta, --times/--meta, or --dir/--jnr')
+            parser.error('Use --stft/--meta, --times/--meta, --persistence/--meta, or --dir/--jnr')
 
         print(f'\n{"=" * 60}')
         print(f'Data type: {data_type}')

@@ -200,7 +200,7 @@ toc
 
 fprintf('数据生成完成!\n');
 
-if SAMPLE_NUM < 50
+if SAMPLE_NUM < 100
     % 根据启用的可视化类型确定行数
     has_stft  = cfg.output.save_stft && exist('all_stfts','var');
     has_pers  = cfg.output.save_persistence && exist('all_persistences','var');

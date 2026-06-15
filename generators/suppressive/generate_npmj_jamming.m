@@ -39,31 +39,43 @@ function [pure_jam] = generate_npmj_jamming(tx, params, data_num)
         N_bw = fs * 0.1; % 默认带宽
     end
 
+    % --- 随机中心频率 (Fj) ---
+    if isfield(params, 'random_Fj') && params.random_Fj
+        Fj = (rand - 0.5) * 0.1 * fs;
+    else
+        if isfield(params, 'Fj')
+            Fj = params.Fj;
+        else
+            Fj = 0;
+        end
+    end
+
     % 初始化输出
     pure_jam = zeros(data_num, N_total);
+    t = (0:N_total-1) / fs;
 
     for m = 1:data_num
         % --- 1. 生成基带调制噪声 ---
         % 生成复高斯白噪声
         white_noise = randn([1,N_total]) + 1j*randn([1,N_total]);
         white_noise = white_noise / std(white_noise); % 标准化
-        
+
         % --- 2. 滤波以控制噪声带宽 ---
         % 噪声的带宽直接影响最终调相信号的频谱形状
         [b, a] = fir1(64, N_bw/fs, chebwin(65, 40));
         mod_signal = filter(b, a, white_noise);
-        
+
         % 提取实部作为相位调制信号 (通常调相使用实噪声)
         mod_signal_real = real(mod_signal);
-        
+
         % --- 3. 直接相位调制 (无积分) ---
         % 核心区别：这里不对噪声积分，而是直接作为相位偏移
-        % 公式: s(t) = Aj * exp(j * (2*pi*fc*t + Kp * m(t)))
+        % 公式: s(t) = Aj * exp(j * (2*pi*Fj*t + Kp * m(t)))
         % 注意：mod_signal_real 的幅度是归一化的(标准差~1)，乘以 Kp 得到相位偏移量
-        
-        % 生成基带噪声调相信号
-        % 注意：如果 Tx 本身是基带信号，可以直接加在 tx(m,:) 上
-        phase_jam_base = Aj * exp(1j * Kp * mod_signal_real);
+
+        % 生成噪声调相信号 (基带相位调制 + 载波)
+        carrier = exp(1j * 2 * pi * Fj * t);
+        phase_jam_base = Aj * exp(1j * Kp * mod_signal_real) .* carrier;
         
         pure_jam(m,:) = phase_jam_base;
         

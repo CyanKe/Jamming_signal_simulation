@@ -80,11 +80,16 @@ function cfg = config()
     % 压制干扰类型列表
     cfg.jamming.suppressive_types = {'AJ', 'BJ', 'SJ', 'PJ', 'NCJ', 'NPJ', 'NFMJ', 'NPMJ', 'NAMJ'};
 
-    % 要组合的欺骗干扰 (设为[]使用全部，设为{'none'}跳过自动组合)
+    % ===== 组合模式1: 压制+欺骗交叉组合 (笛卡尔积) =====
+    % 要组合的欺骗干扰 (设为[]使用全部deceptive_types，设为{'none'}跳过此模式)
     cfg.jamming.combo_deceptive = {'CSJ', 'DFTJ', 'ISRJ', 'ISCJ', 'MISRJ', 'C&IJ', 'SMSPJ'};
-    % 要组合的压制干扰 (设为[]使用全部)
+    % 要组合的压制干扰 (设为[]使用全部suppressive_types)
     cfg.jamming.combo_suppressive = {'AJ', 'BJ', 'SJ', 'PJ', 'NCJ', 'NPJ', 'NFMJ', 'NPMJ', 'NAMJ'};
 
+    % ===== 组合模式2: 任意两种干扰组合 (C(n,2)无重复) =====
+    % 设为[]使用全部deceptive+suppressive，设为{'none'}跳过此模式
+    % 自动避免: 自配对(DFTJ+DFTJ) 和 反向重复(DFTJ+CSJ vs CSJ+DFTJ)
+    cfg.jamming.combo_types = {'none'};%{'CSJ', 'DFTJ', 'ISRJ', 'ISCJ', 'MISRJ', 'ISDJ', 'C&IJ', 'SMSPJ','AJ', 'BJ', 'SJ', 'PJ', 'NCJ', 'NPJ', 'NFMJ', 'NPMJ', 'NAMJ'};
     % ==================== 生成计划 ====================
     % 格式: {名称, 标签, 样本数}
     % 标签可以是单个数字或数组(混合干扰)
@@ -118,53 +123,72 @@ function cfg = config()
         % {'CSJ','AJ'} ,  cfg.generation.SAMPLE_NUM_M;
     };
 
-    % ----- 自动生成组合干扰 (基于combo_deceptive和combo_suppressive) -----
+    % ----- 模式1: 自动生成压制+欺骗交叉组合 (笛卡尔积) -----
     if ~isempty(cfg.jamming.combo_deceptive) && ~strcmp(cfg.jamming.combo_deceptive{1}, 'none')
-        combo_plan = generate_combination_plan(cfg, cfg.jamming.combo_deceptive, cfg.jamming.combo_suppressive);
+        combo_plan = generate_combination_plan_cross(cfg, cfg.jamming.combo_deceptive, cfg.jamming.combo_suppressive);
+        cfg.generation_plan = [cfg.generation_plan; combo_plan];
+    end
+
+    % ----- 模式2: 自动生成任意两种干扰组合 (C(n,2)无重复) -----
+    if ~isempty(cfg.jamming.combo_types) && ~strcmp(cfg.jamming.combo_types{1}, 'none')
+        combo_plan = generate_combination_plan(cfg, cfg.jamming.combo_types);
         cfg.generation_plan = [cfg.generation_plan; combo_plan];
     end
 end
 
 % ==========================================================
-% generate_combination_plan - 自动生成欺骗+压制组合干扰计划
+% generate_combination_plan_cross - 模式1: 压制+欺骗交叉组合 (笛卡尔积)
 % ==========================================================
-% 用法:
-%   plan = generate_combination_plan(cfg, {'CSJ', 'DFTJ'}, {'AJ'})
-%   plan = generate_combination_plan(cfg, {'CSJ', 'DFTJ'}, {'AJ'}, 100)  % 指定样本数
-%   plan = generate_combination_plan(cfg, [], {'AJ'})  % 使用所有欺骗干扰
-%   plan = generate_combination_plan(cfg, {'CSJ'}, [])  % 使用所有压制干扰
-%
-% 返回格式: cell array，可直接合并到generation_plan中
-% 例如: cfg.generation_plan = [cfg.generation_plan; plan];
-% ==========================================================
-function plan = generate_combination_plan(cfg, deceptive_list, suppressive_list, sample_num)
-    % 如果未指定样本数，使用默认混合干扰样本数
+function plan = generate_combination_plan_cross(cfg, deceptive_list, suppressive_list, sample_num)
     if nargin < 4
         sample_num = cfg.generation.SAMPLE_NUM_M;
     end
-
-    % 如果deceptive_list为空，使用所有欺骗干扰
     if isempty(deceptive_list)
         deceptive_list = cfg.jamming.deceptive_types;
     end
-
-    % 如果suppressive_list为空，使用所有压制干扰
     if isempty(suppressive_list)
         suppressive_list = cfg.jamming.suppressive_types;
     end
 
-    % 生成所有两两组合
     plan = {};
     for i = 1:length(deceptive_list)
         for j = 1:length(suppressive_list)
-            % 组合格式: {cell数组, 样本数}
             combination = {deceptive_list{i}, suppressive_list{j}};
             plan = [plan; {combination, sample_num}]; %#ok<AGROW>
         end
     end
 
-    % 打印生成的计划
-    fprintf('生成组合干扰计划 (%d 种组合):\n', length(plan));
+    fprintf('生成交叉组合干扰计划 (%d 种组合 = %d×%d):\n', ...
+        length(plan), length(deceptive_list), length(suppressive_list));
+    for k = 1:length(plan)
+        combo = plan{k,1};
+        fprintf('  {''%s'', ''%s''} -> %d 样本\n', combo{1}, combo{2}, plan{k,2});
+    end
+end
+
+% ==========================================================
+% generate_combination_plan - 模式2: 任意两种干扰组合 (C(n,2)无重复)
+% ==========================================================
+function plan = generate_combination_plan(cfg, type_list, sample_num)
+    if nargin < 3
+        sample_num = cfg.generation.SAMPLE_NUM_M;
+    end
+    if isempty(type_list)
+        type_list = [cfg.jamming.deceptive_types, cfg.jamming.suppressive_types];
+    end
+
+    n = length(type_list);
+    plan = {};
+
+    % 生成 C(n,2) 无重复组合: 仅 i < j，避免自配对和反向重复
+    for i = 1:n
+        for j = i+1:n
+            combination = {type_list{i}, type_list{j}};
+            plan = [plan; {combination, sample_num}]; %#ok<AGROW>
+        end
+    end
+
+    fprintf('生成任意组合干扰计划 (%d 种组合 = C(%d,2)):\n', length(plan), n);
     for k = 1:length(plan)
         combo = plan{k,1};
         fprintf('  {''%s'', ''%s''} -> %d 样本\n', combo{1}, combo{2}, plan{k,2});

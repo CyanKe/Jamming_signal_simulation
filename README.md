@@ -118,3 +118,222 @@ run('main/main_generation_v2.m');  % 执行生成
 - 各数据集 (train/val/test) 的生成计划
 - 干噪比 (JNR)
 - 干扰带宽等特定参数
+
+---
+
+## 数据集格式说明
+
+### 输出文件
+
+每个 JNR 目录下生成以下文件：
+
+| 文件名 | 格式 | 说明 |
+| :--- | :--- | :--- |
+| `<dataset>_echo_times.mat` | `.mat` (v7.3) | 时域信号 |
+| `<dataset>_echo_stfts.mat` | `.mat` (v7.3) | STFT 时频谱 (可选) |
+| `<dataset>_echo_persistences.mat` | `.mat` (v7.3) | 持续时间谱 (可选) |
+| `<dataset>_echo_features.json` | JSON | 多域特征 (可选) |
+| `<dataset>_echo_metadata.json` | JSON | 样本元数据 (含标签) |
+| `generation_plan.mat` / `.json` | `.mat` / JSON | 生成计划 |
+
+其中 `<dataset>` 为 `train` / `val` / `test`，由 `cfg.output.dataset_type` 控制。
+
+### 变量说明
+
+#### `all_times` — 时域信号
+
+```text
+变量名: all_times
+类型:   single
+形状:   [SAMPLE_NUM × PRI_samp]
+说明:   每行为一个样本的复基带时域信号 (I/Q)
+```
+
+#### `all_stfts` — STFT 时频谱
+
+```text
+变量名: all_stfts
+类型:   single
+形状:   [SAMPLE_NUM × Nfft × N_cols]
+说明:   spectrogram() 输出, Nfft=128, Hamming窗
+频率轴: F (centered, Hz)
+时间轴: T (s)
+```
+
+#### `all_persistences` — 持续时间谱
+
+```text
+变量名: all_persistences
+类型:   single
+形状:   [SAMPLE_NUM × Nfft × num_power_bins]
+说明:   功率维度直方图, num_power_bins=64
+功率轴: power_centers (dB)
+频率轴: F (Hz)
+```
+
+#### `all_metadata` — 样本元数据
+
+```json
+[
+  {
+    "sample_idx": 1,
+    "jam_types": ["DFTJ"],
+    "JNR": 10,
+    "pos": 1234,
+    "jam_params": {
+      "dftj_k": 5
+    }
+  }
+]
+```
+
+| 字段 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `sample_idx` | int | 样本序号 (1-based) |
+| `jam_types` | string[] | 干扰类型缩写数组, 单一干扰如 `["DFTJ"]`, 混合干扰如 `["DFTJ","AJ"]` |
+| `JNR` | float | 干噪比 (dB) |
+| `pos` | int | 目标在 PRI 中的起始采样位置 |
+| `jam_params` | object | 该样本的干扰生成参数 (因类型而异) |
+
+#### `all_features` — 多域特征
+
+```json
+[
+  {
+    "time_domain": { "skewness": 0.12, "kurtosis": 3.45, ... },
+    "freq_domain": { "spectral_skewness": 0.34, ... },
+    "bispectrum": { "bispectrum_variance": 0.001, ... },
+    "wavelet": { "variance": 0.56, "mean": 1.23, ... },
+    "statistical": { "shannon_entropy": 2.34, ... }
+  }
+]
+```
+
+包含 5 个域共 22 维特征 (详见 `load_features.py:46-75`)。
+
+### 标签体系
+
+#### 干扰类型缩写与类别
+
+**欺骗式干扰 (Deceptive)** — 8 种:
+
+| 索引 | 缩写 | 中文名称 | 生成函数 |
+| :---: | :---: | :--- | :--- |
+| 1 | `CSJ` | 梳状谱干扰 | `generate_csj_jamming` |
+| 2 | `DFTJ` | 密集假目标干扰 | `generate_dftj_jamming` |
+| 3 | `ISRJ` | 间歇采样转发干扰 | `generate_isrj_jamming` |
+| 4 | `ISCJ` | 间歇采样循环干扰 | `generate_iscj_jamming` |
+| 5 | `MISRJ` | 间歇采样调制转发干扰 | `generate_misrj_jamming` |
+| 6 | `ISDJ` | 间歇采样单独干扰 | `generate_isdj_jamming` |
+| 7 | `C&IJ` | 切片交织干扰 | `generate_cij_jamming` |
+| 8 | `SMSPJ` | 弥散谱干扰 | `generate_smspj_jamming` |
+
+**压制干扰 (Suppressive)** — 9 种:
+
+| 索引 | 缩写 | 中文名称 | 生成函数 |
+| :---: | :---: | :--- | :--- |
+| 9 | `AJ` | 瞄准干扰 | `generate_ab_jamming` |
+| 10 | `BJ` | 阻塞干扰 | `generate_ab_jamming` |
+| 11 | `SJ` | 扫频干扰 | `generate_sj_jamming` |
+| 12 | `PJ` | 脉冲干扰 | `generate_pulse_jamming` |
+| 13 | `NCJ` | 噪声卷积干扰 | `generate_ncj_jamming` |
+| 14 | `NPJ` | 噪声乘积干扰 | `generate_npj_jamming` |
+| 15 | `NFMJ` | 噪声调频干扰 | `generate_nfmj_jamming` |
+| 16 | `NPMJ` | 噪声调相干扰 | `generate_npmj_jamming` |
+| 17 | `NAMJ` | 噪声调幅干扰 | `generate_namj_jamming` |
+
+> **注意**: 上述索引基于 `config_example.m` 中 `generation_plan` 的顺序。标签在 metadata 中以**字符串缩写**存储 (`jam_types` 字段), 不使用整数索引。若需整数标签, 可按此表映射, 或从 `generation_plan` 的顺序推导。
+
+**混合干扰标签**格式: `"DFTJ+AJ"` (用 `+` 连接多个缩写, 按字母序排列)。
+
+### PyTorch 数据加载
+
+使用 `load_features.py` 加载特征数据:
+
+```python
+from load_features import SignalFeatureDataset
+from torch.utils.data import DataLoader
+
+dataset = SignalFeatureDataset(
+    features_path='output/<date>/JNR_+10/train_echo_features.json',
+    metadata_path='output/<date>/JNR_+10/train_echo_metadata.json'
+)
+dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
+```
+
+标签从 metadata 的 `jam_types` 字段自动提取, `encode_labels()` 按字母序编码为整数, 映射表存储在 `dataset.label_map` 中。
+
+---
+
+## 添加新干扰类型
+
+如需添加新的干扰类型, 按以下步骤操作:
+
+### 1. 创建生成器函数
+
+在 `generators/deceptive/` 或 `generators/suppressive/` 下创建 `generate_<缩写>_jamming.m`:
+
+```matlab
+function [pure_jam, rx, jam_info] = generate_xxx_jamming(tx, params, mode)
+% GENERATE_XXX_JAMMING - <干扰名称>
+%
+% 输入:
+%   tx     - 基带发射信号
+%   params - 参数结构体 (含 fs, fc, B, taup, JNR, PRI_samp 等)
+%   mode   - 1=仅返回干扰信号, 2=返回干扰+目标回波, 3=返回干扰信息
+%
+% 输出:
+%   pure_jam  - 纯干扰信号 (mode 1,2)
+%   rx        - 干扰+目标回波+噪声 (mode 2)
+%   jam_info  - 干扰参数字典 (mode 3, 用于 metadata)
+```
+
+**约定**:
+
+- 缩写使用**大写字母**, 长度 2–5 个字符
+- `pure_jam` 的长度必须与 `tx` 一致 (`params.N_total`)
+- `jam_info` 为 struct 数组, 包含该干扰的关键参数 (会写入 metadata)
+
+### 2. 在调度器中注册
+
+编辑 [main/multi_generation_v2.m](main/multi_generation_v2.m), 在 `switch jam_type` 中添加新 case:
+
+```matlab
+case 'XXX'  % XXX - <干扰名称>
+    jam_params = params;
+    jam_params.JNR = current_jnr;
+    [pure_jam, ~, jam_info] = generate_xxx_jamming(tx, jam_params, 1);
+    metadata(m).jam_params.xxx_param1 = jam_info(1).param1;
+```
+
+### 3. 在配置中声明
+
+编辑 `config.m` (从 `config_example.m` 复制):
+
+```matlab
+% 将新类型加入对应列表
+cfg.jamming.deceptive_types = {..., 'XXX'};   % 欺骗式
+% 或
+cfg.jamming.suppressive_types = {..., 'XXX'}; % 压制
+
+% 如有特定参数, 添加:
+cfg.jamming.xxx.param1 = <默认值>;
+
+% 加入生成计划:
+cfg.generation_plan = {
+    ...
+    'XXX', cfg.generation.SAMPLE_NUM_S;
+};
+```
+
+### 4. 更新类别数
+
+如果新增类型改变了基础类别总数 (当前为 17), 更新:
+
+```matlab
+cfg.jamming.numClasses = <新总数>;
+```
+
+### 5. 更新 README 标签表
+
+在本文档的"标签体系"表格中添加新行。

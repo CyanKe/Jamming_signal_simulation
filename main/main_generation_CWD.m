@@ -121,9 +121,9 @@ for current_jnr = JNR_values
     path_cwd_label = fullfile(cwd_output_dir, 'val_echo_label.mat');
 
     % 保存 CWD 结果 (新增 - 新文件夹)
-    save(path_cwds, 'all_cwds', '-v7.3');
-    save(path_cwd_times, 'all_times', '-v7.3');
-    save(path_cwd_label, 'all_label', '-v7.3');
+    save(path_cwds, 'all_cwds', '-v7.3', '-nocompression');
+    save(path_cwd_times, 'all_times', '-v7.3', '-nocompression');
+    save(path_cwd_label, 'all_label', '-v7.3', '-nocompression');
 end
 toc
 

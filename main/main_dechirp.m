@@ -171,7 +171,7 @@ function main_dechirp(input_dir, options)
 
             % 保存STFT数据
             all_stfts = single(all_stfts);
-            save(dechirp_out, 'all_stfts', '-v7.3');
+            save(dechirp_out, 'all_stfts', '-v7.3', '-nocompression');
             fprintf('  已保存: %s\n', dechirp_out);
         end
         fprintf('\n');

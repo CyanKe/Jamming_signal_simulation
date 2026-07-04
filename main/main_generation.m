@@ -183,13 +183,13 @@ for current_jnr = JNR_values
 
     all_stfts = single(all_stfts);
     all_times = single(all_times);
-    save(path_stfts, 'all_stfts', '-v7.3');
-    save(path_times, 'all_times', '-v7.3');
-    save(path_label, 'all_label', '-v7.3');
+    save(path_stfts, 'all_stfts', '-v7.3', '-nocompression');
+    save(path_times, 'all_times', '-v7.3', '-nocompression');
+    save(path_label, 'all_label', '-v7.3', '-nocompression');
 
     % 保存metadata
     
-    save(path_metadata, 'all_metadata', '-v7.3');
+    save(path_metadata, 'all_metadata', '-v7.3', '-nocompression');
     fprintf('Saved metadata to: %s\n', path_metadata);
 
 

@@ -158,15 +158,15 @@ for current_jnr = JNR_values
     % 保存数据
     if cfg.output.save_stft
         all_stfts = single(all_stfts);
-        save(path_stfts, 'all_stfts', '-v7.3');
+        save(path_stfts, 'all_stfts', '-v7.3', '-nocompression');
     end
     if cfg.output.save_persistence
         all_persistences = single(all_persistences);
         save(path_persistences, 'all_persistences', 'num_power_bins', 'power_centers', 'F', '-v7.3');
     end
     all_times = single(all_times);
-    save(path_times, 'all_times', '-v7.3');
-    save(path_plan_mat, 'generation_plan', '-v7.3');
+    save(path_times, 'all_times', '-v7.3', '-nocompression');
+    save(path_plan_mat, 'generation_plan', '-v7.3', '-nocompression');
 
     % 保存generation_plan为JSON格式 (便于查看)
     plan_struct = struct('jam_types', {}, 'sample_num', {});

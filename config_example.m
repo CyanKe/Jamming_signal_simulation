@@ -62,11 +62,11 @@ function cfg = config()
     cfg.persistence.num_power_bins = 64; % 功率分级数 (输出维度: Nfft × num_power_bins)
 
     % ==================== 输出设置 ====================
-    cfg.output.dataset_type = 'test';  % 'train', 'val', 'test'
+    cfg.output.dataset_type = 'train';  % 'train', 'val', 'test'
     cfg.output.use_datetime = true;    % 是否使用日期时间作为目录名
     cfg.output.custom_dirname = '';   % 自定义目录名 (优先于日期时间)
     cfg.output.extract_features = false;  % 是否提取多域特征 (耗时较长时可关闭)
-    cfg.output.save_stft = true;          % 是否保存STFT数据 (不需要STFT时可关闭以节省时间和磁盘)
+    cfg.output.save_stft = false;          % 是否保存STFT数据 (不需要STFT时可关闭以节省时间和磁盘)
     cfg.output.save_persistence = false;  % 是否计算并保存持续时间谱 (依赖STFT, 开启后自动计算STFT但不一定保存)
 
     % ==================== 样本生成参数 ====================

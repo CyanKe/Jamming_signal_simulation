@@ -98,6 +98,62 @@ def load_times(mat_path):
     return np.abs(arr)
 
 
+def load_stft_rgb(mat_path, colormap_name=None):
+    """Load RGB colormap STFT data from *_echo_stfts_rgb.mat.
+
+    Args:
+        mat_path: Path to *_echo_stfts_rgb.mat (v7.3 HDF5 format).
+        colormap_name: Specific colormap to load (e.g., 'jet', 'parula'),
+                       or None to load all available colormaps as a dict.
+
+    Returns:
+        If colormap_name is str: np.ndarray [N, H, W, 3] uint8
+        If colormap_name is None: dict {name: np.ndarray [N, H, W, 3] uint8}
+
+    Dimension handling:
+        MATLAB stores [Samples, H, W, 3] in column-major order.
+        HDF5 on disk: [3, W, H, Samples].
+        h5py reads as: [3, W, H, Samples].
+        Transpose to:   [Samples, H, W, 3] via np.transpose(arr, (3, 2, 1, 0)).
+    """
+    with h5py.File(mat_path, 'r') as f:
+        if colormap_name is not None:
+            var_name = f'rgb_{colormap_name}'
+            if var_name not in f:
+                available = sorted([k[4:] for k in f.keys() if k.startswith('rgb_')])
+                raise KeyError(
+                    f"Colormap '{colormap_name}' not found in {mat_path}. "
+                    f"Available: {available}"
+                )
+            arr = f[var_name][:]
+            # HDF5 storage order (MATLAB column-major): [3, W, H, N]
+            # Transpose to Python: [N, H, W, 3]
+            arr = np.transpose(arr, (3, 2, 1, 0))
+            return np.array(arr, dtype=np.uint8)
+        else:
+            result = {}
+            for key in f.keys():
+                if key.startswith('rgb_'):
+                    cmap_name = key[4:]  # strip 'rgb_' prefix
+                    arr = f[key][:]
+                    arr = np.transpose(arr, (3, 2, 1, 0))
+                    result[cmap_name] = np.array(arr, dtype=np.uint8)
+            return result
+
+
+def list_rgb_colormaps(mat_path):
+    """List available colormap names in a *_echo_stfts_rgb.mat file.
+
+    Args:
+        mat_path: Path to *_echo_stfts_rgb.mat
+
+    Returns:
+        Sorted list of colormap name strings (e.g., ['gray', 'hot', 'jet', 'parula', 'turbo'])
+    """
+    with h5py.File(mat_path, 'r') as f:
+        return sorted([k[4:] for k in f.keys() if k.startswith('rgb_')])
+
+
 def load_persistence(mat_path):
     """Load persistence spectrum .mat (real-valued), return (N, freq, power_bins)."""
     with h5py.File(mat_path, 'r') as f:

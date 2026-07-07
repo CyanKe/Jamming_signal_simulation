@@ -53,6 +53,15 @@ function cfg = config()
     cfg.stft.Noverlap = 65;        % 重叠长度
     cfg.stft.Nfft = 128;           % FFT点数
 
+    % ==================== STFT RGB Colormap 参数 ====================
+    % 是否生成多种 colormap 的 RGB 图像数据 (用于数据增强)
+    % 复数STFT → abs() → [dB/线性] → 全局百分位归一化 → colormap → uint8 RGB [N, H, W, 3]
+    % 输出文件: {split}_echo_stfts_rgb.mat (每种colormap保存为独立变量 rgb_<name>)
+    cfg.output.save_stft_rgb = false;
+    cfg.stft_rgb.colormaps = {'parula', 'jet', 'turbo', 'hot', 'gray'};
+    cfg.stft_rgb.normalization = 'dB';               % 'dB'=20*log10 压缩动态范围 | 'linear'=原始幅度
+    cfg.stft_rgb.percentile_range = [1, 99];          % 归一化百分位裁剪范围
+
     % ==================== CWD参数 (可选) ====================
     cfg.cwd.enabled = false;       % 是否使用CWD
     cfg.cwd.sigma = 0.5;           % CWD缩放因子

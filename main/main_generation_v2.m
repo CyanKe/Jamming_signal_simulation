@@ -117,6 +117,48 @@ for current_jnr = JNR_values
         fprintf('  持续时间谱耗时: %.2f s\n', toc(t_pers));
     end
 
+    % 生成 RGB Colormap 数据 (用于数据增强)
+    if cfg.output.save_stft_rgb
+        fprintf('正在生成 RGB colormap 数据 (%d 样本)...\n', SAMPLE_NUM);
+        t_rgb = tic;
+        cmaps = cfg.stft_rgb.colormaps;
+        num_cmaps = length(cmaps);
+
+        % 计算全局归一化参数 (基于子集以加速)
+        norm_mode = cfg.stft_rgb.normalization;  % 'dB' 或 'linear'
+        sample_size = min(50, SAMPLE_NUM);
+        sample_indices = randperm(SAMPLE_NUM, sample_size);
+        sample_abs = abs(all_stfts(sample_indices, :, :));
+        switch norm_mode
+            case 'db'
+                sample_mag = 20 * log10(sample_abs + eps);
+            case 'linear'
+                sample_mag = sample_abs;
+        end
+        norm_params.lo = prctile(sample_mag(:), cfg.stft_rgb.percentile_range(1));
+        norm_params.hi = prctile(sample_mag(:), cfg.stft_rgb.percentile_range(2));
+        fprintf('  %s归一化范围: [%.1f, %.1f] (百分位 [%d, %d])\n', ...
+                upper(norm_mode), norm_params.lo, norm_params.hi, ...
+                cfg.stft_rgb.percentile_range(1), cfg.stft_rgb.percentile_range(2));
+
+        % 逐 colormap 生成, 保存为独立变量 (rgb_parula, rgb_jet, ...)
+        for c = 1:num_cmaps
+            cmap_name = cmaps{c};
+            t_cmap = tic;
+            rgb_data = zeros(SAMPLE_NUM, Nfft, N_cols, 3, 'uint8');
+            for i = 1:SAMPLE_NUM
+                rgb_data(i, :, :, :) = apply_colormap_to_stft(...
+                    squeeze(all_stfts(i, :, :)), cmap_name, norm_params, norm_mode);
+            end
+            varname = ['rgb_', cmap_name];
+            eval([varname ' = rgb_data;']);
+            fprintf('  [%d/%d] %s: %dx%dx%d, 耗时 %.1fs\n', ...
+                    c, num_cmaps, cmap_name, Nfft, N_cols, 3, toc(t_cmap));
+        end
+        colormap_names = cmaps; %#ok<NASGU>
+        fprintf('  RGB生成总耗时: %.2f s\n', toc(t_rgb));
+    end
+
     % 提取多域特征（并行加速）
     if cfg.output.extract_features
         fprintf('正在提取特征...\n');
@@ -149,6 +191,7 @@ for current_jnr = JNR_values
     dataset_type = cfg.output.dataset_type;
     path_stfts = fullfile(jnr_output_dir, sprintf('%s_echo_stfts.mat', dataset_type));
     path_persistences = fullfile(jnr_output_dir, sprintf('%s_echo_persistences.mat', dataset_type));
+    path_stfts_rgb = fullfile(jnr_output_dir, sprintf('%s_echo_stfts_rgb.mat', dataset_type));
     path_times = fullfile(jnr_output_dir, sprintf('%s_echo_times.mat', dataset_type));
     path_metadata = fullfile(jnr_output_dir, sprintf('%s_echo_metadata.json', dataset_type));
     path_features = fullfile(jnr_output_dir, sprintf('%s_echo_features.json', dataset_type));
@@ -163,6 +206,21 @@ for current_jnr = JNR_values
     if cfg.output.save_persistence
         all_persistences = single(all_persistences);
         save(path_persistences, 'all_persistences', 'num_power_bins', 'power_centers', 'F', '-v7.3');
+    end
+    if cfg.output.save_stft_rgb
+        % 动态构建保存变量列表, 将每种 colormap 作为独立变量保存
+        cmaps = cfg.stft_rgb.colormaps;
+        save_vars = {};
+        for c = 1:length(cmaps)
+            save_vars{end+1} = ['rgb_', cmaps{c}]; %#ok<AGROW>
+        end
+        save_vars{end+1} = 'colormap_names';
+        save_vars{end+1} = 'F';
+        save_vars{end+1} = 'T';
+        save_vars{end+1} = 'norm_params';
+        save(path_stfts_rgb, save_vars{:}, '-v7.3');
+        info = dir(path_stfts_rgb);
+        fprintf('  RGB已保存: %s (%.1f MB)\n', path_stfts_rgb, info.bytes / 1e6);
     end
     all_times = single(all_times);
     save(path_times, 'all_times', '-v7.3', '-nocompression');

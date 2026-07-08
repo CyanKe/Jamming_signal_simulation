@@ -205,7 +205,7 @@ for current_jnr = JNR_values
     end
     if cfg.output.save_persistence
         all_persistences = single(all_persistences);
-        save(path_persistences, 'all_persistences', 'num_power_bins', 'power_centers', 'F', '-v7.3');
+        save(path_persistences, 'all_persistences', 'num_power_bins', 'power_centers', 'F', '-v7.3','-nocompression');
     end
     if cfg.output.save_stft_rgb
         % 动态构建保存变量列表, 将每种 colormap 作为独立变量保存

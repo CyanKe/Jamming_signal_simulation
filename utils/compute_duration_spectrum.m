@@ -42,11 +42,14 @@ function [persistence_spectrum, power_edges, power_centers] = compute_duration_s
     power_edges = linspace(min_p, max_p, num_power_bins + 1);
     power_centers = (power_edges(1:end-1) + power_edges(2:end)) / 2;
 
-    % 4. 逐频率统计直方图 (probability归一化)
-    persistence_spectrum = zeros(Nfreq, num_power_bins);
-
-    for f = 1:Nfreq
-        counts = histcounts(mag_dB(f, :), power_edges, 'Normalization', 'probability');
-        persistence_spectrum(f, :) = counts;
-    end
+    % 4. 向量化统计直方图 (probability归一化)
+    % 使用 discretize + accumarray 替代逐行 histcounts 循环
+    % 消除 Nfreq 次 histcounts 调用的 MATLAB 解释器开销
+    bin_idx = discretize(mag_dB, power_edges);         % [Nfreq, Ntime] -> bin 索引
+    valid = ~isnan(bin_idx);                           % 超出 edges 范围的值 -> NaN
+    [row_sub, ~] = find(valid);                        % 频率行索引 (列主序展平)
+    counts_2d = accumarray([row_sub, bin_idx(valid)], 1, [Nfreq, num_power_bins]);
+    row_sums = sum(counts_2d, 2);
+    persistence_spectrum = counts_2d ./ row_sums;      % 行归一化 -> 概率
+    persistence_spectrum(row_sums == 0, :) = 0;        % 保护全零行
 end

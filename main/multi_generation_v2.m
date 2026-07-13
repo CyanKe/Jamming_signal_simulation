@@ -15,7 +15,7 @@ As = 10^(params.SNR/20);
 samples = zeros(data_num, N_total);
 
 % 初始化metadata结构数组
-metadata = struct('sample_idx', {}, 'jam_types', {}, 'JNR', {}, 'pos', {}, 'jam_params', {});
+metadata = struct('sample_idx', {}, 'jam_types', {}, 'JNR', {}, 'pos', {}, 'B', {}, 'taup', {}, 'mu', {}, 'sweep_dir', {}, 'jam_params', {});
 
 for m = 1:data_num
     % 初始化当前样本的metadata
@@ -24,13 +24,33 @@ for m = 1:data_num
     metadata(m).JNR = current_jnr;
     metadata(m).jam_params = struct();
 
-    % 生成基础目标信号 (所有干扰类型共用)
+    % --- 样本级 LFM 随机化 (先于 pos 随机化) ---
+    if isfield(cfg.signal, 'B_range') && ~isempty(cfg.signal.B_range)
+        [params.B, params.taup, params.sweep_dir] = ...
+            sample_lfm_params(cfg.signal, params.fs, params.PRI);
+    else
+        params.sweep_dir = 1;  % 默认上扫
+    end
+
+    % --- 目标位置随机化 ---
     pos_range = cfg.generation.pos_range;
     current_pos = pos_range(1) + randi([0, pos_range(2)-pos_range(1)]);
     params.pos = current_pos;
-    metadata(m).pos = current_pos;
 
+    % --- 生成基础目标信号 ---
     [tx, params] = generate_0base_signal(params);
+
+    % --- 校验: pos+Ntau 不超出 PRI_samp ---
+    if params.pos + params.Ntau > params.PRI_samp
+        params.pos = max(1, params.PRI_samp - params.Ntau + 1);
+    end
+
+    % --- 记录 metadata ---
+    metadata(m).pos = current_pos;
+    metadata(m).B = params.B;
+    metadata(m).taup = params.taup;
+    metadata(m).mu = params.mu;
+    metadata(m).sweep_dir = params.sweep_dir;
 
     % --- 生成噪声 ---
     white_noise = randn([1,N_total]) + 1j*randn([1,N_total]);
@@ -147,26 +167,52 @@ for m = 1:data_num
                 jam_params = params;
                 jam_params.JNR = current_jnr;
                 BJ_range = cfg.jamming.nfmj.BJ_range;
-                jam_params.BJ = min(30e6, (BJ_range(1) + (BJ_range(2)-BJ_range(1))*rand) * 1e6);
+                jam_params.BJ = (BJ_range(1) + (BJ_range(2)-BJ_range(1))*rand) * 1e6;
                 jam_params.random_Fj = cfg.jamming.nfmj.random_Fj;
+                % 可选 Kf / Kf_range (Hz/V)；缺省由 generate_nfmj 使用 Bj/4
+                if isfield(cfg.jamming.nfmj, 'Kf_range') && numel(cfg.jamming.nfmj.Kf_range) >= 2
+                    kr = cfg.jamming.nfmj.Kf_range;
+                    jam_params.Kf = kr(1) + (kr(2) - kr(1)) * rand;
+                elseif isfield(cfg.jamming.nfmj, 'Kf')
+                    jam_params.Kf = cfg.jamming.nfmj.Kf;
+                end
                 [pure_jam] = generate_nfmj_jamming(tx, jam_params, 1);
                 metadata(m).jam_params.nfmj_BJ = jam_params.BJ;
 
             case 'NPMJ' % NPMJ - 噪声调相干扰
                 jam_params = params;
                 jam_params.JNR = current_jnr;
+                % BJ = 目标 RF 带宽 (Hz)；不再硬截断到 30 MHz
                 BJ_range = cfg.jamming.npmj.BJ_range;
-                jam_params.BJ = min(30e6, (BJ_range(1) + (BJ_range(2)-BJ_range(1))*rand) * 1e6);
+                jam_params.BJ = (BJ_range(1) + (BJ_range(2) - BJ_range(1)) * rand) * 1e6;
+                jam_params.BJ = min(jam_params.BJ, 0.9 * params.fs);
                 jam_params.random_Fj = cfg.jamming.npmj.random_Fj;
+                % 可选 Kp / Kp_range (rad)；缺省由 generate_npmj 使用 pi/2
+                if isfield(cfg.jamming.npmj, 'Kp_range') && numel(cfg.jamming.npmj.Kp_range) >= 2
+                    kr = cfg.jamming.npmj.Kp_range;
+                    jam_params.Kp = kr(1) + (kr(2) - kr(1)) * rand;
+                elseif isfield(cfg.jamming.npmj, 'Kp')
+                    jam_params.Kp = cfg.jamming.npmj.Kp;
+                end
                 [pure_jam] = generate_npmj_jamming(tx, jam_params, 1);
                 metadata(m).jam_params.npmj_BJ = jam_params.BJ;
+                if isfield(jam_params, 'Kp')
+                    metadata(m).jam_params.npmj_Kp = jam_params.Kp;
+                end
 
             case 'NAMJ' % NAMJ - 噪声调幅干扰
                 jam_params = params;
                 jam_params.JNR = current_jnr;
                 BJ_range = cfg.jamming.namj.BJ_range;
-                jam_params.BJ = min(30e6, (BJ_range(1) + (BJ_range(2)-BJ_range(1))*rand) * 1e6);
+                jam_params.BJ = (BJ_range(1) + (BJ_range(2)-BJ_range(1))*rand) * 1e6;
                 jam_params.random_Fj = cfg.jamming.namj.random_Fj;
+                % 可选 m_a / m_a_range；缺省由 generate_namj 使用 0.8
+                if isfield(cfg.jamming.namj, 'm_a_range') && numel(cfg.jamming.namj.m_a_range) >= 2
+                    mr = cfg.jamming.namj.m_a_range;
+                    jam_params.m_a_range = mr;
+                elseif isfield(cfg.jamming.namj, 'm_a')
+                    jam_params.m_a = cfg.jamming.namj.m_a;
+                end
                 [pure_jam] = generate_namj_jamming(tx, jam_params, 1);
                 metadata(m).jam_params.namj_BJ = jam_params.BJ;
 

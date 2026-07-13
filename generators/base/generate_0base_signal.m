@@ -8,7 +8,12 @@ function [tx, params_out] = generate_0base_signal(params)
     % LFM脉冲
     Ntau = round(params.taup * fs);
     ttau = (-Ntau/2 : Ntau/2-1) * ts;
-    lfm = exp(1j*pi*params.B/params.taup * ttau.^2);
+    mu = params.B / params.taup;  % 调频斜率 (绝对值)
+    if isfield(params, 'sweep_dir') && params.sweep_dir < 0
+        lfm = exp(-1j*pi*mu * ttau.^2);  % 下扫
+    else
+        lfm = exp(1j*pi*mu * ttau.^2);   % 上扫 (默认)
+    end
 
     % 多脉冲参数
     PRI_samp = round(params.PRI * fs);
@@ -32,5 +37,13 @@ function [tx, params_out] = generate_0base_signal(params)
     params_out.ttau = ttau;
     params_out.target_start_idx_in_PRI = target_start_idx_in_PRI;
     params_out.lfm = lfm;
+    % 带符号的调频斜率: 上扫 +mu, 下扫 -mu
+    if isfield(params, 'sweep_dir') && params.sweep_dir < 0
+        params_out.mu = -mu;
+        params_out.sweep_dir = -1;
+    else
+        params_out.mu = mu;
+        params_out.sweep_dir = 1;
+    end
     
 end

@@ -67,15 +67,22 @@ for g = 1:size(generator_list, 1)
             params.BJ = (BJ_range(1) + (BJ_range(2)-BJ_range(1))*rand) * 1e6;
         elseif strcmp(jam_name, 'NFMJ')
             BJ_range = cfg.jamming.nfmj.BJ_range;
-            params.BJ = max(20e6, (BJ_range(1) + (BJ_range(2)-BJ_range(1))*rand) * 1e6);
+            params.BJ =  (BJ_range(1) + (BJ_range(2)-BJ_range(1))*rand) * 1e6;
             params.random_Fj = cfg.jamming.nfmj.random_Fj;
         elseif strcmp(jam_name, 'NPMJ')
             BJ_range = cfg.jamming.npmj.BJ_range;
-            params.BJ = max(20e6, (BJ_range(1) + (BJ_range(2)-BJ_range(1))*rand) * 1e6);
+            params.BJ = (BJ_range(1) + (BJ_range(2)-BJ_range(1))*rand) * 1e6;
+            
             params.random_Fj = cfg.jamming.npmj.random_Fj;
+            if isfield(cfg.jamming.npmj, 'Kp_range') && numel(cfg.jamming.npmj.Kp_range) >= 2
+                kr = cfg.jamming.npmj.Kp_range;
+                params.Kp = kr(1) + (kr(2) - kr(1)) * rand;
+            elseif isfield(cfg.jamming.npmj, 'Kp')
+                params.Kp = cfg.jamming.npmj.Kp;
+            end
         elseif strcmp(jam_name, 'NAMJ')
             BJ_range = cfg.jamming.namj.BJ_range;
-            params.BJ = max(20e6, (BJ_range(1) + (BJ_range(2)-BJ_range(1))*rand) * 1e6);
+            params.BJ = (BJ_range(1) + (BJ_range(2)-BJ_range(1))*rand) * 1e6;
             params.random_Fj = cfg.jamming.namj.random_Fj;
         end
 

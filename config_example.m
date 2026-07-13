@@ -13,6 +13,10 @@ function cfg = config()
     cfg.signal.PRI = 100e-6;        % 脉冲重复间隔 100us
     cfg.signal.SNR = -5;            % 信噪比 dB
     cfg.signal.pos = 5000;          % 目标在PRI中的起始位置
+    cfg.signal.B_range = [8e6, 15e6];         % LFM带宽随机范围 [min, max] Hz（样本级随机，方案A）
+    cfg.signal.taup_range = [15e-6, 30e-6];   % LFM脉宽随机范围 [min, max] s（样本级随机，方案A）
+    cfg.signal.sweep_dir_enable = true;        % 是否随机上下扫频（false=固定上扫）
+    cfg.signal.BT_min = 50;                    % 最小时间带宽积 B*taup
 
     % ==================== 干扰参数 ====================
     cfg.jamming.numClasses = 17;    % 基础干扰类型数量 (8 deceptive + 9 suppressive)
@@ -37,16 +41,25 @@ function cfg = config()
     cfg.jamming.sj.BJ_range = [10, 30];      % 干扰带宽范围 MHz
 
     % NFMJ (噪声调频干扰)
-    cfg.jamming.nfmj.BJ_range = [15, 15];    % 干扰带宽范围 MHz
+    % BJ_range: 目标 RF 带宽 (MHz)，经 NFM 射频带宽公式 B_RF ≈ 2*Kf*sig_n 反推调制噪声带宽
+    cfg.jamming.nfmj.BJ_range = [15, 25];    % 干扰带宽范围 MHz
     cfg.jamming.nfmj.random_Fj = true;
+    cfg.jamming.nfmj.Kf = 2e6;               % 调频灵敏度 (Hz/V)，对 unit-rms 调制噪声
+    cfg.jamming.nfmj.Kf_range = [1e6, 4e6];  % 可选：样本级随机 Kf（优先于 Kf）
 
     % NPMJ (噪声调相干扰)
-    cfg.jamming.npmj.BJ_range = [15, 15];    % 干扰带宽范围 MHz
+    % BJ_range: 目标 RF 带宽 (MHz)，经 Carson 反推调制噪声带宽
+    %   B_RF ≈ 2*(Kp+1)*N_bw  =>  N_bw = BJ/(2*(Kp+1))
+    cfg.jamming.npmj.BJ_range = [15, 15];    % 目标 RF 带宽范围 MHz
     cfg.jamming.npmj.random_Fj = true;
+    cfg.jamming.npmj.Kp = 1.5;               % 调相指数 (rad)，对 unit-rms 调制噪声
+    % cfg.jamming.npmj.Kp_range = [1.0, 2.5]; % 可选：样本级随机 Kp（优先于 Kp）
 
     % NAMJ (噪声调幅干扰)
-    cfg.jamming.namj.BJ_range = [15, 15];    % 干扰带宽范围 MHz
+    cfg.jamming.namj.BJ_range = [15, 25];    % 干扰带宽范围 MHz
     cfg.jamming.namj.random_Fj = true;
+    cfg.jamming.namj.m_a = 0.8;              % 调幅深度
+    cfg.jamming.namj.m_a_range = [0.3, 0.95]; % 可选：样本级随机 m_a（优先于 m_a）
 
     % ==================== STFT参数 ====================
     cfg.stft.Nwin = 128;           % 窗口长度

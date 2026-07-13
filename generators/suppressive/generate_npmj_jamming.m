@@ -62,7 +62,7 @@ function [pure_jam] = generate_npmj_jamming(tx, params, data_num)
 
         % --- 2. 滤波以控制噪声带宽 ---
         % 噪声的带宽直接影响最终调相信号的频谱形状
-        [b, a] = fir1(64, N_bw/fs, chebwin(65, 40));
+        [b, a] = fir1(64, N_bw/(fs/2), chebwin(65, 40));
         mod_signal = filter(b, a, white_noise);
 
         % 提取实部作为相位调制信号 (通常调相使用实噪声)

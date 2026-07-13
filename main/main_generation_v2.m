@@ -50,7 +50,7 @@ for current_jnr = JNR_values
     end
 
     % 初始化metadata数组
-    all_metadata = struct('sample_idx', {}, 'jam_types', {}, 'JNR', {}, 'pos', {}, 'jam_params', {});
+    all_metadata = struct('sample_idx', {}, 'jam_types', {}, 'JNR', {}, 'pos', {}, 'B', {}, 'taup', {}, 'mu', {}, 'sweep_dir', {}, 'jam_params', {});
 
     point_l = 1;
     for i = 1:len
@@ -205,7 +205,7 @@ for current_jnr = JNR_values
     end
     if cfg.output.save_persistence
         all_persistences = single(all_persistences);
-        save(path_persistences, 'all_persistences', 'num_power_bins', 'power_centers', 'F', '-v7.3','-nocompression');
+        save(path_persistences, 'all_persistences', 'num_power_bins', 'power_centers', 'F', '-v7.3');
     end
     if cfg.output.save_stft_rgb
         % 动态构建保存变量列表, 将每种 colormap 作为独立变量保存

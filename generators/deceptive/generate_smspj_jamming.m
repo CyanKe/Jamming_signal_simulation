@@ -23,24 +23,26 @@ function [pure_jam, jam_info] = generate_smspj_jamming(tx, params, data_num)
     jam_info = struct('M', {}, 'slope_factor', {});  % M: 扫频分段数, slope_factor: 斜率倍增因子
 
     for m = 1:data_num
-        % --- 1. 提取原波形 ---
-        % 假设 tx 的 pos 处是纯净的 LFM 信号
-        lfm = tx(1, pos : pos + Ntau - 1);
+        % --- 1. 设置SMSPJ参数 ---
+        M = randi([4 10]); % 扫频分段数 (M需为整数)
 
-        % --- 2. 设置SMSPJ参数 ---
-        M = randi([4 8]); % 扫频分段数 (M需为整数)
-
-        % --- 3. 生成 SMSPJ 子波形 (核心步骤) ---
-        % 通过抽取(1:M:end)实现时域压缩 M 倍，斜率变为 M*mu
-        % 抽取后的长度约为 Ntau/M
+        % --- 2. 生成 SMSPJ 子波形 (核心步骤) ---
+        % SMSPJ: 将 LFM 时域压缩 M 倍 (调频斜率变为 M*mu), 然后重复拼接。
+        % 带宽 B 来自 params.B (当前样本随机值, 非写死)。
         T = Ntau / fs;
         mu = B / T;
-        mu_prime = M * mu; % 斜率只增加 M 倍
+        mu_prime = M * mu;            % M 倍调频斜率
         Tj_samples = floor(Ntau / M);
         t_sub = (0 : Tj_samples-1) / fs;
 
-        % 直接生成子波形
-        sub_wave = exp(1j * pi * mu_prime * t_sub.^2).* exp(-1j * pi * B * t_sub);
+        % 直接生成子波形 (扫频方向跟随当前样本 LFM)
+        % exp(-1j*pi*B*t) = 频率偏置 -B/2, 用于上扫将 [0,B] → [-B/2, B/2]
+        % 下扫时频率从 0→-B, 需要用 +B/2 偏置 exp(1j*pi*B*t) 将其搬到 [B/2, -B/2]
+        if isfield(params, 'sweep_dir') && params.sweep_dir < 0
+            sub_wave = exp(-1j * pi * mu_prime * t_sub.^2) .* exp(1j * pi * B * t_sub);
+        else
+            sub_wave = exp(1j * pi * mu_prime * t_sub.^2) .* exp(-1j * pi * B * t_sub);
+        end
 
         % --- 4. 重复拼接子波形 ---
         % 将压缩后的子波形重复 M 次，使其总长度回到 Ntau 左右
@@ -61,7 +63,7 @@ function [pure_jam, jam_info] = generate_smspj_jamming(tx, params, data_num)
 
         % 设置干扰延迟 (例如相对于目标延迟 5us)
         % 在实际对抗中，干扰通常比目标快或重合，这里设为 5us
-        delay_samp = round(randn()*5e-6 * fs);
+        delay_samp = round(rand()*5e-6 * fs);
         target_pos = pos + delay_samp;
 
         % 确保 target_pos 在有效范围内 [1, PRI_samp-Ntau]

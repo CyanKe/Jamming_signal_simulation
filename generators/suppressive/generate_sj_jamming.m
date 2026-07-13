@@ -25,11 +25,16 @@ function [pure_jam] = generate_sj_jamming(tx, params, data_num)
         % white_noise = white_noise / std(white_noise); % 标准化
 
         % --- 生成扫频干扰 ---
-        T_sweep=20*1e-6+round((rand(1,1)*20))*1e-6;%扫频周期20-40us
-        B1 = 80e6;                 % 设置为80MHz
-        f0 = -B1/2;                % 起始频率（相对基带）
-        K = B1 / T_sweep;          % 调频斜率
-        tj = (0:N_total-1)/fs;     % 时间轴
+        % 扫频带宽: ≤ fs 避免频谱混叠
+        jam_BW = params.fs; % * (0.1 + 0.5 * rand());  % 0.5~1.0×fs = 40~80 MHz
+        % 随机上下扫: +1 上扫 (低→高), -1 下扫 (高→低)
+        sweep_dir = 2 * (rand() > 0.5) - 1;
+        f0 = -sweep_dir * jam_BW/2;    % 起始频率（相对基带）
+        % 扫频周期: 基于 PRI 而非 taup, 限制 ≤ PRI/2 确保 ≥2 个完整周期
+        T_sweep_raw = params.PRI * (0.25 + 0.25 * rand());  % 0.15~0.50 × PRI
+        T_sweep = round(T_sweep_raw * fs) / fs;  % 对齐采样网格
+        K = sweep_dir * jam_BW / T_sweep;  % 调频斜率 (带方向)
+        tj = (0:N_total-1)/fs;         % 时间轴
 
         % 将时间折返到每个扫频周期内
         t_mod = mod(tj, T_sweep);

@@ -1,4 +1,4 @@
-function [pure_jam,bbox_info,jam_info] = generate_isdj_jamming(tx, params, data_num)
+function [pure_jam,jam_info] = generate_isdj_jamming(tx, params, data_num)
     % generate_isdj_jamming - 生成间歇采样直接干扰
     % Hatahet A F, Hassan H A B, Kader F M A, et al. Performance analysis of LFM radar in presence of different interrupted sampling jamming techniques[C]//2023 International Telecommunications Conference (ITC-Egypt). IEEE, 2023: 557-562.
     % tx: 包含 LFM 信号的发射数据
@@ -17,7 +17,6 @@ function [pure_jam,bbox_info,jam_info] = generate_isdj_jamming(tx, params, data_
     Ntau = params.Ntau;
     fs = params.fs;
     Np = params.Np;
-    B = params.B;
 
 
     % 初始化输出
@@ -56,46 +55,24 @@ function [pure_jam,bbox_info,jam_info] = generate_isdj_jamming(tx, params, data_
         % 我们首先在一个PRI内生成干扰，然后将其复制到所有PRI
         jam_pri = zeros(1, PRI_samp);
 
-        % 存储bounding box信息
-        bbox_info = [];
-        x_min = inf; x_max = -inf;
-        y_min = inf; y_max = -inf;
-
-
         % 循环多次转发，形成一串等间隔的假目标
         for i = 1:M
-            % 干扰切片的起始位置 = 真实目标位置 + 累积的延迟
-            % if i~=1
-                left_range = params.pos + i * delay_samp;
-                right_range = left_range + Ntau - 1;
-                random_phase = exp(rand*2*pi*1i);
-                jam_slice = jam_slice*random_phase;
-                % 检查是否超出当前PRI的范围，避免索引错误
-                if right_range <= PRI_samp
-                    jam_pri(left_range:right_range) = jam_pri(left_range:right_range) + Aj * jam_slice*exp(rand*2*pi*1i);
-                else
-                    % 只要 lfm 的长度与目标区域的长度不一致，就取较小的那个长度
-                    right_boundary = min(PRI_samp, left_range + length(lfm) - 1);
-                    % 重新定义索引范围并赋值
-                    jam_pri(left_range:right_boundary) = jam_pri(left_range:right_boundary) + ...
-                        Aj * jam_slice(1 : (right_boundary - left_range + 1))*exp(rand*2*pi*1i);
-                end
-            % 计算bounding box
-            % 时域范围
-            x_min = min(x_min,left_range);
-            x_max = max(x_max,right_range);
-            x_max = min(x_max,PRI_samp);
-
-            % 频域范围（LFM信号带宽）
-            y_min = min(y_min,- B / 2);  % 最低频率
-            y_max = max(y_max, B / 2);  % 最高频率
-            % end
-
+            left_range = params.pos + i * delay_samp;
+            right_range = left_range + Ntau - 1;
+            random_phase = exp(rand*2*pi*1i);
+            jam_slice = jam_slice*random_phase;
+            % 检查是否超出当前PRI的范围，避免索引错误
+            if right_range <= PRI_samp
+                jam_pri(left_range:right_range) = jam_pri(left_range:right_range) + Aj * jam_slice*exp(rand*2*pi*1i);
+            else
+                % 只要 lfm 的长度与目标区域的长度不一致，就取较小的那个长度
+                right_boundary = min(PRI_samp, left_range + length(lfm) - 1);
+                % 重新定义索引范围并赋值
+                jam_pri(left_range:right_boundary) = jam_pri(left_range:right_boundary) + ...
+                    Aj * jam_slice(1 : (right_boundary - left_range + 1))*exp(rand*2*pi*1i);
+            end
         end
 
-        pure_jam(m,:) = repmat(jam_pri, 1, Np);
-        % 添加到bounding box列表
-        bbox_info = [bbox_info; x_min, y_min, x_max, y_max];
         pure_jam(m,:) = repmat(jam_pri, 1, Np);
         pure_jam(m,:) = pure_jam(m,:) / sqrt(mean(abs(pure_jam(m,:)).^2)) * Aj;
 

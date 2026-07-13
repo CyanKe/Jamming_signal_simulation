@@ -68,20 +68,20 @@ for m = 1:data_num
             case 'DFTJ'  % DFTJ - 密集假目标干扰
                 jam_params = params;
                 jam_params.JNR = current_jnr;
-                [pure_jam,~,jam_info] = generate_dftj_jamming(tx, jam_params, 1);
+                [pure_jam,jam_info] = generate_dftj_jamming(tx, jam_params, 1);
                 metadata(m).jam_params.dftj_k = jam_info(1).k;
 
             case 'ISRJ'  % ISRJ - 间歇采样转发干扰
                 jam_params = params;
                 jam_params.JNR = current_jnr;
-                [pure_jam,~,jam_info] = generate_isrj_jamming(tx, jam_params, 1);
+                [pure_jam,jam_info] = generate_isrj_jamming(tx, jam_params, 1);
                 metadata(m).jam_params.isrj_M = jam_info(1).M;
                 metadata(m).jam_params.isrj_N = jam_info(1).N;
 
             case 'ISCJ'  % ISCJ - 间歇采样循环转发干扰
                 jam_params = params;
                 jam_params.JNR = current_jnr;
-                [pure_jam,~,jam_info] = generate_iscj_jamming(tx, jam_params, 1);
+                [pure_jam,jam_info] = generate_iscj_jamming(tx, jam_params, 1);
                 metadata(m).jam_params.iscj_M = jam_info(1).M;
                 metadata(m).jam_params.iscj_N = jam_info(1).N;
                 metadata(m).jam_params.iscj_period = jam_info(1).period;
@@ -90,14 +90,14 @@ for m = 1:data_num
             case 'ISDJ'  % ISDJ - 间歇采样循环/直接干扰
                 jam_params = params;
                 jam_params.JNR = current_jnr;
-                [pure_jam,~,jam_info] = generate_isdj_jamming(tx, jam_params, 1);
+                [pure_jam,jam_info] = generate_isdj_jamming(tx, jam_params, 1);
                 metadata(m).jam_params.isdj_M = jam_info(1).M;
                 metadata(m).jam_params.isdj_N = jam_info(1).N;
             
             case 'MISRJ'  % MISRJ - 调制间歇采样转发干扰
                 jam_params = params;
                 jam_params.JNR = current_jnr;
-                [pure_jam,~,jam_info] = generate_misrj_jamming(tx, jam_params, 1);
+                [pure_jam,jam_info] = generate_misrj_jamming(tx, jam_params, 1);
                 metadata(m).jam_params.misrj_M = jam_info(1).M;
                 metadata(m).jam_params.misrj_K = jam_info(1).K;
                 metadata(m).jam_params.misrj_slice_ratio = jam_info(1).slice_ratio;

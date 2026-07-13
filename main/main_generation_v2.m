@@ -42,7 +42,6 @@ for current_jnr = JNR_values
     % 初始化数据容器
     fprintf('当前 JNR = %d dB\n', current_jnr);
     all_times = zeros(SAMPLE_NUM, params.PRI_samp);
-    all_label = zeros(SAMPLE_NUM, params.numClasses);
     need_stft = cfg.output.save_stft || cfg.output.save_persistence;
     if need_stft
         N_cols = floor((params.N_total - Noverlap) / Step);

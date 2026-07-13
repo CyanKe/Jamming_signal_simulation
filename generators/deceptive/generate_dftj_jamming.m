@@ -1,4 +1,4 @@
-function [pure_jam,bbox_info,jam_info] = generate_dftj_jamming(tx, params, data_num)
+function [pure_jam,jam_info] = generate_dftj_jamming(tx, params, data_num)
     % generate_dftj_jamming - 生成密集假目标干扰
     % tx: 包含 LFM 信号的发射数据
     % params: 参数结构体 (需包含 fs, N_total, JNR, PRI_samp, Ntau, Np, pos, M)
@@ -17,7 +17,6 @@ function [pure_jam,bbox_info,jam_info] = generate_dftj_jamming(tx, params, data_
     Ntau = params.Ntau;
     Np = params.Np;
     pos = params.pos;
-    B = params.B;
 
     % 初始化输出
     % samples = zeros(data_num, N_total);
@@ -35,13 +34,7 @@ function [pure_jam,bbox_info,jam_info] = generate_dftj_jamming(tx, params, data_
         delay_times = zeros(1, k);  % 记录每个假目标的延迟时间
 
         % --- 2. 创建一个PRI长度的干扰信号模板 ---
-        % 我们首先在一个PRI内生成假目标，然后将其复制到所有PRI
         jam_pri = zeros(1, PRI_samp);
-
-        % 存储bounding box信息
-        bbox_info = [];
-        x_min = inf; x_max = -inf;
-        y_min = inf; y_max = -inf;
 
         % --- 3. 循环生成每个假目标并放入模板 ---
         for i = 1:k
@@ -77,19 +70,7 @@ function [pure_jam,bbox_info,jam_info] = generate_dftj_jamming(tx, params, data_
                         Aj * lfm(1 : (right_boundary - left_range + 1));
                 end
             end
-            % 计算bounding box
-            % 时域范围
-            x_min = min(x_min,left_range);
-            x_max = max(x_max,right_range);
-            x_max = min(x_max,PRI_samp);
-
-            % 频域范围（LFM信号带宽）
-            y_min = min(y_min,- B / 2);  % 最低频率
-            y_max = max(y_max, B / 2);  % 最高频率
         end
-
-        % 添加到bounding box列表
-        bbox_info = [bbox_info; x_min, y_min, x_max, y_max];
 
         % 复制到所有PRI
         jam_signal = repmat(jam_pri, 1, Np);

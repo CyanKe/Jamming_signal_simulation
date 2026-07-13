@@ -13,7 +13,7 @@ addpath(fullfile(root_path, 'utils'));
 cfg = config();
 params = config_to_params(cfg);
 
-test_JNR = 20;  % dB
+test_JNR = 0;  % dB
 params.JNR = test_JNR;
 
 N_test = 100;
@@ -22,6 +22,9 @@ generator_list = {
     'CSJ',   @generate_csj_jamming;
     'DFTJ',  @generate_dftj_jamming;
     'ISRJ',  @generate_isrj_jamming;
+    'ISCJ',  @generate_iscj_jamming;
+    'ISDJ',  @generate_isdj_jamming;
+    'MISRJ', @generate_misrj_jamming;
     'SMSPJ', @generate_smspj_jamming;
     'CIJ',   @generate_cij_jamming;
     'RGPO',  @generate_rgpo_jamming;

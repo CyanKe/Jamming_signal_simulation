@@ -1,4 +1,4 @@
-function [pure_jam,bbox_info,jam_info] = generate_iscj_jamming(tx, params, data_num)
+function [pure_jam,jam_info] = generate_iscj_jamming(tx, params, data_num)
     % generate_iscj_jamming - 生成间歇采样循环转发干扰 (ISCJ)
     % Interrupted Sampling Circular Jamming
     %
@@ -23,7 +23,6 @@ function [pure_jam,bbox_info,jam_info] = generate_iscj_jamming(tx, params, data_
     Ntau = params.Ntau;
     fs = params.fs;
     Np = params.Np;
-    B = params.B;
 
     % ISCJ 固定参数集（与参考实现一致）
     period_arr = [4e-6, 5e-6, 10e-6];  % 采样脉冲周期 (s)
@@ -32,9 +31,6 @@ function [pure_jam,bbox_info,jam_info] = generate_iscj_jamming(tx, params, data_
     % 初始化输出
     pure_jam = zeros(data_num, N_total);
     jam_info = struct('M', {}, 'N', {}, 'period', {}, 'duty', {});
-
-    % 初始化bounding box
-    bbox_info = zeros(data_num, 4);
 
     for m = 1:data_num
         % --- 1. 随机选择ISCJ参数 ---
@@ -59,10 +55,7 @@ function [pure_jam,bbox_info,jam_info] = generate_iscj_jamming(tx, params, data_
         end
 
         % --- 3. ISCJ核心：累积循环转发 ---
-        % 第m轮转发切片1→m，共N轮，总计 N(N+1)/2 次切片发射
         jam_pri = zeros(1, PRI_samp);
-
-        x_min = inf; x_max = -inf;
 
         current_pos = params.pos;  % 从脉冲起始位置开始转发
 
@@ -89,25 +82,13 @@ function [pure_jam,bbox_info,jam_info] = generate_iscj_jamming(tx, params, data_
                     end
                 end
 
-                % 更新时域bounding box
-                x_min = min(x_min, current_pos);
-                right_edge = min(current_pos + slen - 1, PRI_samp);
-                x_max = max(x_max, right_edge);
-
                 current_pos = current_pos + slen;
             end
         end
 
-        x_max = min(x_max, PRI_samp);
-        y_min = -B / 2;
-        y_max = B / 2;
-
         % --- 4. 复制到所有PRI + 功率归一化 ---
         pure_jam(m,:) = repmat(jam_pri, 1, Np);
         pure_jam(m,:) = pure_jam(m,:) / sqrt(mean(abs(pure_jam(m,:)).^2)) * Aj;
-
-        % 记录bounding box
-        bbox_info(m,:) = [x_min, y_min, x_max, y_max];
 
         % 记录参数
         jam_info(m).M = N;        % 转发轮数 (= 切片个数)

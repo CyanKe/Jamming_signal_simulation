@@ -1,4 +1,4 @@
-function [pure_jam,bbox_info,jam_info] = generate_misrj_jamming(tx, params, data_num)
+function [pure_jam,jam_info] = generate_misrj_jamming(tx, params, data_num)
     % generate_misrj_jamming - 生成调制间歇采样转发干扰 (MISRJ)
     % Modulated Interrupted Sampling Repeater Jamming
     %
@@ -28,9 +28,6 @@ function [pure_jam,bbox_info,jam_info] = generate_misrj_jamming(tx, params, data
     % 初始化输出
     pure_jam = zeros(data_num, N_total);
     jam_info = struct('M', {}, 'K', {}, 'slice_ratio', {}, 'delay_ratio', {});
-
-    % 初始化bounding box
-    bbox_info = zeros(data_num, 4);
 
     for m = 1:data_num
         % --- 1. 随机选择MISRJ参数 ---
@@ -74,9 +71,6 @@ function [pure_jam,bbox_info,jam_info] = generate_misrj_jamming(tx, params, data
         % --- 4. 在一个PRI内生成转发干扰串 ---
         jam_pri = zeros(1, PRI_samp);
 
-        x_min = inf; x_max = -inf;
-        y_min = inf; y_max = -inf;
-
         % 循环多次转发，每次转发的信号完全一致（无额外随机化）
         for i = 1:M
             left_range = params.pos + i * delay_samp;
@@ -89,15 +83,6 @@ function [pure_jam,bbox_info,jam_info] = generate_misrj_jamming(tx, params, data
                 jam_pri(left_range:right_boundary) = jam_pri(left_range:right_boundary) + ...
                     Aj * jam_slice(1:(right_boundary - left_range + 1));
             end
-
-            % 计算bounding box — 时域范围
-            x_min = min(x_min, left_range);
-            x_max = max(x_max, right_range);
-            x_max = min(x_max, PRI_samp);
-
-            % 频域范围（LFM信号带宽）
-            y_min = min(y_min, -B / 2);
-            y_max = max(y_max, B / 2);
         end
 
         % 复制到所有PRI
@@ -105,9 +90,6 @@ function [pure_jam,bbox_info,jam_info] = generate_misrj_jamming(tx, params, data
 
         % 功率归一化到目标JNR
         pure_jam(m,:) = pure_jam(m,:) / sqrt(mean(abs(pure_jam(m,:)).^2)) * Aj;
-
-        % 记录bounding box
-        bbox_info(m,:) = [x_min, y_min, x_max, y_max];
 
         % 记录当前样本的参数信息
         jam_info(m).M = M;                    % 转发次数

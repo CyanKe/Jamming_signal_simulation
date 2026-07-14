@@ -75,14 +75,6 @@ function cfg = config()
     cfg.stft_rgb.normalization = 'dB';               % 'dB'=20*log10 压缩动态范围 | 'linear'=原始幅度
     cfg.stft_rgb.percentile_range = [1, 99];          % 归一化百分位裁剪范围
 
-    % ==================== CWD参数 (可选) ====================
-    cfg.cwd.enabled = false;       % 是否使用CWD
-    cfg.cwd.sigma = 0.5;           % CWD缩放因子
-
-    % ==================== 持续时间谱参数 (Persistence Spectrum) ====================
-    cfg.persistence.enabled = false;     % 是否启用持续时间谱 (需要cfg.output.save_persistence=true)
-    cfg.persistence.num_power_bins = 64; % 功率分级数 (输出维度: Nfft × num_power_bins)
-
     % ==================== 输出设置 ====================
     cfg.output.dataset_type = 'train';  % 'train', 'val', 'test'
     cfg.output.use_datetime = true;    % 是否使用日期时间作为目录名

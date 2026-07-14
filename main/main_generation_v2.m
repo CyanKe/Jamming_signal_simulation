@@ -101,7 +101,7 @@ for current_jnr = JNR_values
     if cfg.output.save_persistence
         fprintf('正在计算持续时间谱 (%d 样本)...\n', SAMPLE_NUM);
         t_pers = tic;
-        num_power_bins = cfg.persistence.num_power_bins;
+        num_power_bins = 64;  % 功率分级数
         % 从第一个样本确定全局功率范围 (用百分位数+余量避免削顶)
         pow_db1 = 10 * log10(abs(squeeze(all_stfts(1, :, :))).^2 + eps);
         pwr_lo = prctile(pow_db1(:), 1);   % 1%分位 (避免噪声毛刺)

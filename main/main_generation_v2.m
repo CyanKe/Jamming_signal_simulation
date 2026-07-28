@@ -114,6 +114,8 @@ for current_jnr = JNR_values
             % 对齐 pspectrum("persistence"): 每样本独立 min/max + 5% cushion, 时间窗百分比
             fprintf('  模式: matlab (每样本功率轴独立, 值=时间窗百分比)\n');
             all_power_centers = zeros(SAMPLE_NUM, num_power_bins);
+            power_range_db = [];  %#ok<NASGU>
+            power_range_mode = 'per_sample'; %#ok<NASGU>
             for i = 1:SAMPLE_NUM
                 [all_persistences(i, :, :), ~, pc] = compute_duration_spectrum( ...
                     squeeze(all_stfts(i, :, :)), num_power_bins, [], 'matlab');
@@ -121,21 +123,26 @@ for current_jnr = JNR_values
             end
             power_centers = all_power_centers(1, :);  % 兼容旧字段: 以样本1为参考
         else
-            % custom: 第1样本百分位全局范围 + 行概率归一化
-            pct_lo = 1;
+            % custom: fixed 全库统一功率轴 | auto 按本目录样本1估算
+            pr_opts = struct();
+            if isfield(cfg.persistence, 'power_range_mode')
+                pr_opts.power_range_mode = cfg.persistence.power_range_mode;
+            end
+            if isfield(cfg.persistence, 'power_range_db')
+                pr_opts.power_range_db = cfg.persistence.power_range_db;
+            end
             if isfield(cfg.persistence, 'power_percentile_lo')
-                pct_lo = cfg.persistence.power_percentile_lo;
+                pr_opts.power_percentile_lo = cfg.persistence.power_percentile_lo;
             end
-            margin = 3;
             if isfield(cfg.persistence, 'power_margin_db')
-                margin = cfg.persistence.power_margin_db;
+                pr_opts.power_margin_db = cfg.persistence.power_margin_db;
             end
-            pow_db1 = 10 * log10(abs(squeeze(all_stfts(1, :, :))).^2 + eps);
-            pwr_lo = prctile(pow_db1(:), pct_lo);
-            pwr_hi = max(pow_db1(:));
-            global_pwr_range = [pwr_lo - margin, pwr_hi + margin];
-            fprintf('  模式: custom | 全局功率范围 [%.1f, %.1f] dB (pct_lo=%.1f, margin=%.1f)\n', ...
-                global_pwr_range(1), global_pwr_range(2), pct_lo, margin);
+            stft_ref = squeeze(all_stfts(1, :, :));
+            [global_pwr_range, pr_info] = resolve_custom_power_range(stft_ref, pr_opts);
+            power_range_db = global_pwr_range; %#ok<NASGU>
+            power_range_mode = pr_info.mode; %#ok<NASGU>
+            fprintf('  模式: custom/%s | 功率范围 [%.1f, %.1f] dB (%s)\n', ...
+                pr_info.mode, global_pwr_range(1), global_pwr_range(2), pr_info.source);
             for i = 1:SAMPLE_NUM
                 [all_persistences(i, :, :), ~, power_centers] = compute_duration_spectrum( ...
                     squeeze(all_stfts(i, :, :)), num_power_bins, global_pwr_range, 'custom');
@@ -233,13 +240,14 @@ for current_jnr = JNR_values
     if cfg.output.save_persistence
         all_persistences = single(all_persistences);
         persistence_method = pers_method; %#ok<NASGU>
+        % power_range_mode / power_range_db 已在计算阶段赋值
         if ~isempty(all_power_centers)
             all_power_centers = single(all_power_centers); %#ok<NASGU>
             save(path_persistences, 'all_persistences', 'num_power_bins', 'power_centers', ...
-                'all_power_centers', 'persistence_method', 'F', '-v7.3');
+                'all_power_centers', 'persistence_method', 'power_range_mode', 'power_range_db', 'F', '-v7.3');
         else
             save(path_persistences, 'all_persistences', 'num_power_bins', 'power_centers', ...
-                'persistence_method', 'F', '-v7.3');
+                'persistence_method', 'power_range_mode', 'power_range_db', 'F', '-v7.3');
         end
     end
     if cfg.output.save_stft_rgb

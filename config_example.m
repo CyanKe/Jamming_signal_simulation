@@ -80,8 +80,12 @@ function cfg = config()
     cfg.cwd.sigma = 0.5;           % CWD缩放因子
 
     % ==================== 持续时间谱参数 (Persistence Spectrum) ====================
-    cfg.persistence.enabled = false;     % 是否启用持续时间谱 (需要cfg.output.save_persistence=true)
-    cfg.persistence.num_power_bins = 64; % 功率分级数 (输出维度: Nfft × num_power_bins)
+    % method: 'custom' = 全局百分位范围+行概率归一化
+    %         'matlab' = 对齐 pspectrum persistence (样本内 min/max+5%边距, 时间窗百分比)
+    cfg.persistence.method = 'custom';           % 'custom' | 'matlab'
+    cfg.persistence.num_power_bins = 64;         % 功率分级数 (输出维度: Nfft × num_power_bins)
+    cfg.persistence.power_percentile_lo = 1;     % custom: 全局范围下界百分位
+    cfg.persistence.power_margin_db = 3;         % custom: 上下余量 (dB)
 
     % ==================== 输出设置 ====================
     cfg.output.dataset_type = 'train';  % 'train', 'val', 'test'

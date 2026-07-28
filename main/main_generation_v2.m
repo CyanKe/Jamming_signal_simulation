@@ -102,16 +102,44 @@ for current_jnr = JNR_values
         fprintf('正在计算持续时间谱 (%d 样本)...\n', SAMPLE_NUM);
         t_pers = tic;
         num_power_bins = cfg.persistence.num_power_bins;
-        % 从第一个样本确定全局功率范围 (用百分位数+余量避免削顶)
-        pow_db1 = 10 * log10(abs(squeeze(all_stfts(1, :, :))).^2 + eps);
-        pwr_lo = prctile(pow_db1(:), 1);   % 1%分位 (避免噪声毛刺)
-        pwr_hi = prctile(pow_db1(:), 100);  % 99%分位 (避免孤立尖峰)
-        margin = 3;  % ±3 dB 余量, 覆盖样本间差异
-        global_pwr_range = [pwr_lo - margin, pwr_hi + margin];
+        if isfield(cfg.persistence, 'method') && ~isempty(cfg.persistence.method)
+            pers_method = lower(char(cfg.persistence.method));
+        else
+            pers_method = 'custom';
+        end
         all_persistences = zeros(SAMPLE_NUM, Nfft, num_power_bins);
-        for i = 1:SAMPLE_NUM
-            [all_persistences(i, :, :), ~, power_centers] = compute_duration_spectrum( ...
-                squeeze(all_stfts(i, :, :)), num_power_bins, global_pwr_range);
+        all_power_centers = [];  % matlab 模式下每样本功率轴可能不同
+
+        if strcmp(pers_method, 'matlab')
+            % 对齐 pspectrum("persistence"): 每样本独立 min/max + 5% cushion, 时间窗百分比
+            fprintf('  模式: matlab (每样本功率轴独立, 值=时间窗百分比)\n');
+            all_power_centers = zeros(SAMPLE_NUM, num_power_bins);
+            for i = 1:SAMPLE_NUM
+                [all_persistences(i, :, :), ~, pc] = compute_duration_spectrum( ...
+                    squeeze(all_stfts(i, :, :)), num_power_bins, [], 'matlab');
+                all_power_centers(i, :) = pc;
+            end
+            power_centers = all_power_centers(1, :);  % 兼容旧字段: 以样本1为参考
+        else
+            % custom: 第1样本百分位全局范围 + 行概率归一化
+            pct_lo = 1;
+            if isfield(cfg.persistence, 'power_percentile_lo')
+                pct_lo = cfg.persistence.power_percentile_lo;
+            end
+            margin = 3;
+            if isfield(cfg.persistence, 'power_margin_db')
+                margin = cfg.persistence.power_margin_db;
+            end
+            pow_db1 = 10 * log10(abs(squeeze(all_stfts(1, :, :))).^2 + eps);
+            pwr_lo = prctile(pow_db1(:), pct_lo);
+            pwr_hi = max(pow_db1(:));
+            global_pwr_range = [pwr_lo - margin, pwr_hi + margin];
+            fprintf('  模式: custom | 全局功率范围 [%.1f, %.1f] dB (pct_lo=%.1f, margin=%.1f)\n', ...
+                global_pwr_range(1), global_pwr_range(2), pct_lo, margin);
+            for i = 1:SAMPLE_NUM
+                [all_persistences(i, :, :), ~, power_centers] = compute_duration_spectrum( ...
+                    squeeze(all_stfts(i, :, :)), num_power_bins, global_pwr_range, 'custom');
+            end
         end
         fprintf('  持续时间谱耗时: %.2f s\n', toc(t_pers));
     end
@@ -204,7 +232,15 @@ for current_jnr = JNR_values
     end
     if cfg.output.save_persistence
         all_persistences = single(all_persistences);
-        save(path_persistences, 'all_persistences', 'num_power_bins', 'power_centers', 'F', '-v7.3');
+        persistence_method = pers_method; %#ok<NASGU>
+        if ~isempty(all_power_centers)
+            all_power_centers = single(all_power_centers); %#ok<NASGU>
+            save(path_persistences, 'all_persistences', 'num_power_bins', 'power_centers', ...
+                'all_power_centers', 'persistence_method', 'F', '-v7.3');
+        else
+            save(path_persistences, 'all_persistences', 'num_power_bins', 'power_centers', ...
+                'persistence_method', 'F', '-v7.3');
+        end
     end
     if cfg.output.save_stft_rgb
         % 动态构建保存变量列表, 将每种 colormap 作为独立变量保存

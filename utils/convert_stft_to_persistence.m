@@ -3,21 +3,29 @@
 %
 % 使用:
 %   convert_stft_to_persistence                           % 自动找最新output, 处理所有JNR
-%   convert_stft_to_persistence('output/pspectrum')        % 扫描JNR_*子文件夹, 全部转换
+%   convert_stft_to_persistence('output/2D_8x9_0520')        % 扫描JNR_*子文件夹, 全部转换
 %   convert_stft_to_persistence('output/pspectrum/JNR_+10') % 单个JNR目录
 %   convert_stft_to_persistence(..., 'num_power_bins', 224) % 指定功率分箱
+%   convert_stft_to_persistence(..., 'method', 'matlab')    % 'custom'|'matlab'
 %   convert_stft_to_persistence(..., 'force', true)        % 覆盖已有文件
+%   convert_stft_to_persistence('output/2D_8x9_0520','num_power_bins', 224,'force',true) 
 % ==========================================================
 
 function convert_stft_to_persistence(varargin)
     p = inputParser;
     p.addOptional('target_dir', '', @ischar);
     p.addParameter('num_power_bins', 224, @isnumeric);
+    p.addParameter('method', 'custom', @(s) ischar(s) || isstring(s));
+    p.addParameter('power_percentile_lo', 1, @isnumeric);
+    p.addParameter('power_margin_db', 3, @isnumeric);
     p.addParameter('force', false, @islogical);
     p.parse(varargin{:});
 
     target_dir = p.Results.target_dir;
     num_power_bins = p.Results.num_power_bins;
+    pers_method = lower(char(p.Results.method));
+    pct_lo = p.Results.power_percentile_lo;
+    margin = p.Results.power_margin_db;
     force = p.Results.force;
 
     script_path = fileparts(mfilename('fullpath'));
@@ -111,27 +119,49 @@ function convert_stft_to_persistence(varargin)
         fs = 80e6;
         F = (-Nfft/2 : Nfft/2-1)' * (fs / Nfft);
 
-        % 全局功率范围 (同main_generation_v2)
-        pow_db1 = 10 * log10(abs(squeeze(all_stfts(1, :, :))).^2 + eps);
-        pwr_lo = prctile(pow_db1(:), 1);
-        pwr_hi = max(pow_db1(:));
-        margin = 3;
-        global_pwr_range = [pwr_lo - margin, pwr_hi + margin];
-
         % 计算持续时间谱
         t_start = tic;
         all_persistences = zeros(SAMPLE_NUM, Nfft, num_power_bins, 'single');
-        for i = 1:SAMPLE_NUM
-            [all_persistences(i, :, :), ~, power_centers] = compute_duration_spectrum( ...
-                squeeze(all_stfts(i, :, :)), num_power_bins, global_pwr_range);
-            if mod(i, 500) == 0
-                fprintf('    %d/%d (%.0fs)\n', i, SAMPLE_NUM, toc(t_start));
+        all_power_centers = [];
+        persistence_method = pers_method; %#ok<NASGU>
+
+        if strcmp(pers_method, 'matlab')
+            fprintf('  模式: matlab (每样本独立功率轴, 时间窗百分比)\n');
+            all_power_centers = zeros(SAMPLE_NUM, num_power_bins, 'single');
+            for i = 1:SAMPLE_NUM
+                [all_persistences(i, :, :), ~, pc] = compute_duration_spectrum( ...
+                    squeeze(all_stfts(i, :, :)), num_power_bins, [], 'matlab');
+                all_power_centers(i, :) = pc;
+                if mod(i, 500) == 0
+                    fprintf('    %d/%d (%.0fs)\n', i, SAMPLE_NUM, toc(t_start));
+                end
+            end
+            power_centers = all_power_centers(1, :);
+        else
+            pow_db1 = 10 * log10(abs(squeeze(all_stfts(1, :, :))).^2 + eps);
+            pwr_lo = prctile(pow_db1(:), pct_lo);
+            pwr_hi = max(pow_db1(:));
+            global_pwr_range = [pwr_lo - margin, pwr_hi + margin];
+            fprintf('  模式: custom | 全局功率范围 [%.1f, %.1f] dB\n', ...
+                global_pwr_range(1), global_pwr_range(2));
+            for i = 1:SAMPLE_NUM
+                [all_persistences(i, :, :), ~, power_centers] = compute_duration_spectrum( ...
+                    squeeze(all_stfts(i, :, :)), num_power_bins, global_pwr_range, 'custom');
+                if mod(i, 500) == 0
+                    fprintf('    %d/%d (%.0fs)\n', i, SAMPLE_NUM, toc(t_start));
+                end
             end
         end
         fprintf('  耗时: %.1fs (%d样本)\n', toc(t_start), SAMPLE_NUM);
 
         % 保存
-        save(persist_path, 'all_persistences', 'num_power_bins', 'power_centers', 'F', '-v7.3');
+        if ~isempty(all_power_centers)
+            save(persist_path, 'all_persistences', 'num_power_bins', 'power_centers', ...
+                'all_power_centers', 'persistence_method', 'F', '-v7.3');
+        else
+            save(persist_path, 'all_persistences', 'num_power_bins', 'power_centers', ...
+                'persistence_method', 'F', '-v7.3');
+        end
         info = dir(persist_path);
         fprintf('  已保存: %s (%.1f MB)\n', persist_path, info.bytes / 1e6);
     end

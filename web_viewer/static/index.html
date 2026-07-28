@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>干扰信号可视化 | Jamming Viewer</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>干扰信号可视化</h1>
+      <div class="sub">加载 output 下 STFT / Persistence / 时域 .mat · 可调归一化</div>
+    </div>
+    <div class="row-tight">
+      <span id="healthBadge" class="badge">检查服务…</span>
+      <button id="btnRefresh" class="secondary" type="button">刷新数据集</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside>
+      <div class="section">
+        <h2>数据源</h2>
+        <div class="field">
+          <label for="selDataset">数据集 / JNR</label>
+          <select id="selDataset"></select>
+        </div>
+        <div class="field">
+          <label for="selKind">数据类型</label>
+          <select id="selKind">
+            <option value="stft">STFT 时频谱</option>
+            <option value="persistence">Persistence 持续时间谱</option>
+            <option value="times">Times 一维时域</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="selFile">文件 (split)</label>
+          <select id="selFile"></select>
+        </div>
+        <div class="field">
+          <button id="btnOpen" type="button">打开文件</button>
+          <div id="fileInfo" class="hint"></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>样本导航</h2>
+        <div class="field">
+          <label for="sampleSlider">样本索引</label>
+          <div class="row-tight">
+            <button id="btnPrev" class="ghost" type="button" title="上一个">◀</button>
+            <input id="sampleSlider" type="range" min="0" max="0" value="0" />
+            <button id="btnNext" class="ghost" type="button" title="下一个">▶</button>
+          </div>
+          <div class="stat-line">
+            <span>当前</span>
+            <strong id="sampleIdxText">0 / 0</strong>
+          </div>
+        </div>
+        <div class="field">
+          <label for="sampleJump">跳转到</label>
+          <div class="row-tight">
+            <input id="sampleJump" type="number" min="0" value="0" />
+            <button id="btnJump" class="secondary" type="button">Go</button>
+          </div>
+        </div>
+        <div id="sampleLabel" class="sample-info">—</div>
+      </div>
+
+      <div class="section">
+        <h2>归一化</h2>
+        <div class="field">
+          <label>模式 (对齐 MATLAB apply_colormap_to_stft)</label>
+          <div class="radio-group">
+            <label><input type="radio" name="normMode" value="dB" checked /> dB (20·log10)</label>
+            <label><input type="radio" name="normMode" value="linear" /> linear</label>
+          </div>
+        </div>
+        <div class="field">
+          <label>百分位范围</label>
+          <div class="range-pair">
+            <div>
+              <label for="pLo">lo %</label>
+              <input id="pLo" type="number" min="0" max="100" step="0.5" value="1" />
+            </div>
+            <div>
+              <label for="pHi">hi %</label>
+              <input id="pHi" type="number" min="0" max="100" step="0.5" value="99" />
+            </div>
+          </div>
+          <div class="hint">默认 [1, 99]，对应 config.stft_rgb.percentile_range</div>
+        </div>
+        <div class="field check-group">
+          <label>
+            <input id="fixAbs" type="checkbox" />
+            固定绝对范围 (跨样本对比)
+          </label>
+        </div>
+        <div class="field range-pair" id="absRangeFields">
+          <div>
+            <label for="absLo">lo</label>
+            <input id="absLo" type="number" step="any" disabled />
+          </div>
+          <div>
+            <label for="absHi">hi</label>
+            <input id="absHi" type="number" step="any" disabled />
+          </div>
+        </div>
+        <div class="stat-line">
+          <span>当前映射范围</span>
+          <strong id="rangeText">—</strong>
+        </div>
+        <div class="field">
+          <label for="selCmap">Colormap</label>
+          <select id="selCmap">
+            <option value="Jet">Jet</option>
+            <option value="Hot">Hot</option>
+            <option value="Turbo">Turbo</option>
+            <option value="Viridis">Viridis</option>
+            <option value="Plasma">Plasma</option>
+            <option value="Inferno">Inferno</option>
+            <option value="Greys">Gray</option>
+            <option value="Portland">Portland (parula-like)</option>
+          </select>
+        </div>
+        <div class="field" id="timesViewField" style="display:none">
+          <label>时域显示</label>
+          <div class="radio-group">
+            <label><input type="radio" name="timesView" value="mag" checked /> |s|</label>
+            <label><input type="radio" name="timesView" value="real" /> real</label>
+            <label><input type="radio" name="timesView" value="imag" /> imag</label>
+            <label><input type="radio" name="timesView" value="both" /> real+imag</label>
+          </div>
+        </div>
+        <div class="field row">
+          <button id="btnResetNorm" class="secondary" type="button">重置归一化</button>
+          <button id="btnCaptureAbs" class="ghost" type="button">捕获当前为绝对范围</button>
+        </div>
+      </div>
+    </aside>
+
+    <main>
+      <div class="toolbar">
+        <div id="status" class="status">就绪。请选择数据集并打开文件。</div>
+        <div id="pathText" class="status" style="margin-left:auto"></div>
+      </div>
+      <div class="plot-wrap">
+        <div id="plot"></div>
+      </div>
+      <div id="metaPanel" class="meta-panel">metadata 将显示在这里</div>
+    </main>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

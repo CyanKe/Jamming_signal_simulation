@@ -160,16 +160,47 @@ run('main/main_generation_v2.m');  % 执行生成
 时间轴: T (s)
 ```
 
-#### `all_persistences` — 持续时间谱
+#### `all_persistences` — 持续时间谱 (Persistence Spectrum)
+
+由 STFT 功率 (dB) 在频率 × 功率 二维上做直方图得到。默认 `method='custom'`：每频率行归一化为概率（行和为 1）；功率轴由 `power_range_mode` 决定（推荐 `fixed` + `[0, 70]` dB，便于跨 JNR 训练）。
+
+**多通道（当前默认，适合 CNN/ViT）**
 
 ```text
 变量名: all_persistences
 类型:   single
-形状:   [SAMPLE_NUM × Nfft × num_power_bins]
-说明:   功率维度直方图, num_power_bins=64
+形状:   [SAMPLE_NUM × H × W × C]   典型 [N × 224 × 224 × 3]
+说明:   C 个功率分箱尺度各自做 persistence，再统一 resize 到 target_size
+通道:   channel_power_bins = [224, 112, 32]
+        ch1: 原生 224×224；ch2: 224×112 → 上采样；ch3: 224×32 → 上采样
+配置:   cfg.persistence.channel_power_bins / target_size
+功率轴: power_centers (dB)，长度 = W（与输出功率维对齐，跨度 = power_range_db）
+频率轴: F (Hz)，长度 = Nfft（显示时若 H=Nfft 可直接对应）
+同文件: channel_power_bins, target_size, num_power_bins (=max bins),
+        power_range_mode, power_range_db, persistence_method, F
+```
+
+训练时单样本即为 `224×224×3`；PyTorch 常用 `permute` 成 `(C, H, W)`。
+
+**单通道（兼容旧数据 / 关闭多尺度）**
+
+```text
+变量名: all_persistences
+类型:   single
+形状:   [SAMPLE_NUM × Nfft × num_power_bins]   如 [N × 224 × 224]
+说明:   单尺度功率直方图；channel_power_bins=[] 或标量时输出此格式
+配置:   cfg.persistence.num_power_bins（默认 224）
 功率轴: power_centers (dB)
 频率轴: F (Hz)
 ```
+
+| 配置项 | 含义 |
+| :--- | :--- |
+| `channel_power_bins` | 向量 → 多通道；`[]` / 标量 → 单通道 |
+| `target_size` | 多通道输出 `[H, W]`，默认 `[224, 224]` |
+| `power_range_mode` | `fixed` 全库统一功率轴；`auto` 按目录样本估算 |
+| `power_range_db` | `fixed` 时的 `[lo, hi]` dB（建议 JNR 0–20 用 `[0, 70]`） |
+| `method` | `custom` 行概率；`matlab` 对齐 pspectrum 百分比 |
 
 #### `all_metadata` — 样本元数据
 

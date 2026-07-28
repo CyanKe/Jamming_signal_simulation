@@ -101,29 +101,55 @@ for current_jnr = JNR_values
     if cfg.output.save_persistence
         fprintf('正在计算持续时间谱 (%d 样本)...\n', SAMPLE_NUM);
         t_pers = tic;
-        num_power_bins = cfg.persistence.num_power_bins;
+        ch_cfg = resolve_persistence_channel_config(cfg);
+        channel_power_bins = ch_cfg.channel_power_bins;
+        num_power_bins = ch_cfg.num_power_bins; %#ok<NASGU>
+        target_size = ch_cfg.target_size;
+        if isempty(target_size) && ch_cfg.is_multichannel
+            target_size = [Nfft, max(channel_power_bins)];
+        end
         if isfield(cfg.persistence, 'method') && ~isempty(cfg.persistence.method)
             pers_method = lower(char(cfg.persistence.method));
         else
             pers_method = 'custom';
         end
-        all_persistences = zeros(SAMPLE_NUM, Nfft, num_power_bins);
+
+        % 预分配: 多通道 [N,H,W,C], 单通道 [N,Nfft,bins]
+        stft0 = squeeze(all_stfts(1, :, :));
+        [pers0, ~, ch_info0] = compute_persistence_channels( ...
+            stft0, channel_power_bins, [0 1], pers_method, target_size);
+        if ndims(pers0) == 3
+            [H_out, W_out, C_out] = size(pers0);
+            all_persistences = zeros(SAMPLE_NUM, H_out, W_out, C_out);
+            is_multi_pers = true;
+        else
+            [H_out, W_out] = size(pers0);
+            C_out = 1;
+            all_persistences = zeros(SAMPLE_NUM, H_out, W_out);
+            is_multi_pers = false;
+        end
         all_power_centers = [];  % matlab 模式下每样本功率轴可能不同
+        channel_power_bins_saved = channel_power_bins; %#ok<NASGU>
+        target_size_saved = ch_info0.target_size; %#ok<NASGU>
 
         if strcmp(pers_method, 'matlab')
-            % 对齐 pspectrum("persistence"): 每样本独立 min/max + 5% cushion, 时间窗百分比
-            fprintf('  模式: matlab (每样本功率轴独立, 值=时间窗百分比)\n');
-            all_power_centers = zeros(SAMPLE_NUM, num_power_bins);
+            fprintf('  模式: matlab | 通道 bins=%s | 输出 %dx%dx%d\n', ...
+                mat2str(channel_power_bins), H_out, W_out, C_out);
+            all_power_centers = zeros(SAMPLE_NUM, W_out);
             power_range_db = [];  %#ok<NASGU>
             power_range_mode = 'per_sample'; %#ok<NASGU>
             for i = 1:SAMPLE_NUM
-                [all_persistences(i, :, :), ~, pc] = compute_duration_spectrum( ...
-                    squeeze(all_stfts(i, :, :)), num_power_bins, [], 'matlab');
+                [P, pc, ~] = compute_persistence_channels( ...
+                    squeeze(all_stfts(i, :, :)), channel_power_bins, [], 'matlab', target_size);
+                if is_multi_pers
+                    all_persistences(i, :, :, :) = P;
+                else
+                    all_persistences(i, :, :) = P;
+                end
                 all_power_centers(i, :) = pc;
             end
-            power_centers = all_power_centers(1, :);  % 兼容旧字段: 以样本1为参考
+            power_centers = all_power_centers(1, :);
         else
-            % custom: fixed 全库统一功率轴 | auto 按本目录样本1估算
             pr_opts = struct();
             if isfield(cfg.persistence, 'power_range_mode')
                 pr_opts.power_range_mode = cfg.persistence.power_range_mode;
@@ -141,11 +167,17 @@ for current_jnr = JNR_values
             [global_pwr_range, pr_info] = resolve_custom_power_range(stft_ref, pr_opts);
             power_range_db = global_pwr_range; %#ok<NASGU>
             power_range_mode = pr_info.mode; %#ok<NASGU>
-            fprintf('  模式: custom/%s | 功率范围 [%.1f, %.1f] dB (%s)\n', ...
-                pr_info.mode, global_pwr_range(1), global_pwr_range(2), pr_info.source);
+            fprintf('  模式: custom/%s | 功率 [%.1f, %.1f] dB | bins=%s | 输出 %dx%dx%d\n', ...
+                pr_info.mode, global_pwr_range(1), global_pwr_range(2), ...
+                mat2str(channel_power_bins), H_out, W_out, C_out);
             for i = 1:SAMPLE_NUM
-                [all_persistences(i, :, :), ~, power_centers] = compute_duration_spectrum( ...
-                    squeeze(all_stfts(i, :, :)), num_power_bins, global_pwr_range, 'custom');
+                [P, power_centers, ~] = compute_persistence_channels( ...
+                    squeeze(all_stfts(i, :, :)), channel_power_bins, global_pwr_range, 'custom', target_size);
+                if is_multi_pers
+                    all_persistences(i, :, :, :) = P;
+                else
+                    all_persistences(i, :, :) = P;
+                end
             end
         end
         fprintf('  持续时间谱耗时: %.2f s\n', toc(t_pers));
@@ -240,15 +272,20 @@ for current_jnr = JNR_values
     if cfg.output.save_persistence
         all_persistences = single(all_persistences);
         persistence_method = pers_method; %#ok<NASGU>
+        channel_power_bins = channel_power_bins_saved; %#ok<NASGU>
+        target_size = target_size_saved; %#ok<NASGU>
         % power_range_mode / power_range_db 已在计算阶段赋值
+        save_vars = {'all_persistences', 'num_power_bins', 'channel_power_bins', ...
+            'target_size', 'power_centers', 'persistence_method', ...
+            'power_range_mode', 'power_range_db', 'F'};
         if ~isempty(all_power_centers)
             all_power_centers = single(all_power_centers); %#ok<NASGU>
-            save(path_persistences, 'all_persistences', 'num_power_bins', 'power_centers', ...
-                'all_power_centers', 'persistence_method', 'power_range_mode', 'power_range_db', 'F', '-v7.3');
-        else
-            save(path_persistences, 'all_persistences', 'num_power_bins', 'power_centers', ...
-                'persistence_method', 'power_range_mode', 'power_range_db', 'F', '-v7.3');
+            save_vars{end+1} = 'all_power_centers';
         end
+        save(path_persistences, save_vars{:}, '-v7.3');
+        info_p = dir(path_persistences);
+        fprintf('  Persistence已保存: %s (%.1f MB) shape=%s\n', ...
+            path_persistences, info_p.bytes / 1e6, mat2str(size(all_persistences)));
     end
     if cfg.output.save_stft_rgb
         % 动态构建保存变量列表, 将每种 colormap 作为独立变量保存
@@ -334,19 +371,23 @@ if SAMPLE_NUM < 100
                 title('短时傅里叶变换'); grid on;colorbar;
             elseif has_pers
                 subplot(num_rows, 4, 4 + i)
-                imagesc(F/1e6, power_centers, squeeze(all_persistences(sample_idx,:,:))');
+                Pshow = squeeze(all_persistences(sample_idx, :, :, 1));
+                if ndims(Pshow) > 2, Pshow = Pshow(:, :); end
+                imagesc(F/1e6, power_centers, Pshow');
                 set(gca, 'YDir', 'normal');
                 xlabel('频率 (MHz)'); ylabel('功率 (dB)');
-                title('持续时间谱'); colorbar;
+                title('持续时间谱 (ch1)'); colorbar;
             end
 
-            % --- 行3: 持续时间谱 (仅在STFT也存在时) ---
+            % --- 行3: 持续时间谱 (仅在STFT也存在时; 多通道显示 ch1) ---
             if has_stft && has_pers
                 subplot(num_rows, 4, 8 + i)
-                imagesc(F/1e6, power_centers, squeeze(all_persistences(sample_idx,:,:))');
+                Pshow = squeeze(all_persistences(sample_idx, :, :, 1));
+                if ndims(Pshow) > 2, Pshow = Pshow(:, :); end
+                imagesc(F/1e6, power_centers, Pshow');
                 set(gca, 'YDir', 'normal');
                 xlabel('频率 (MHz)'); ylabel('功率 (dB)');
-                title('持续时间谱'); colorbar;
+                title('持续时间谱 (ch1)'); colorbar;
             end
         end
     end

@@ -134,6 +134,16 @@
             <label><input type="radio" name="timesView" value="both" /> real+imag</label>
           </div>
         </div>
+        <div class="field" id="persChannelField" style="display:none">
+          <label>Persistence 通道</label>
+          <div class="radio-group" id="persChannelRadios">
+            <label><input type="radio" name="persChannel" value="0" checked /> ch1</label>
+            <label><input type="radio" name="persChannel" value="1" /> ch2</label>
+            <label><input type="radio" name="persChannel" value="2" /> ch3</label>
+            <label><input type="radio" name="persChannel" value="rgb" /> 三通道 RGB</label>
+          </div>
+          <div id="persChannelHint" class="hint">多通道数据才显示此选项</div>
+        </div>
         <div class="field row">
           <button id="btnResetNorm" class="secondary" type="button">重置归一化</button>
           <button id="btnCaptureAbs" class="ghost" type="button">捕获当前为绝对范围</button>

@@ -13,6 +13,8 @@ const state = {
   sample: null, // decoded arrays
   lastLo: null,
   lastHi: null,
+  nChannels: 1,
+  channelBins: null, // e.g. [224,112,32]
 };
 
 const $ = (id) => document.getElementById(id);
@@ -71,6 +73,54 @@ function reshape2d(flat, shape) {
     rows.push(Array.from(flat.subarray(i * w, (i + 1) * w)));
   }
   return rows;
+}
+
+/** 从 [H,W,C] 扁平数据取第 ch 通道 → Float32Array 长度 H*W */
+function extractChannel(flat, shape, ch) {
+  const [h, w, c] = shape;
+  if (ch < 0 || ch >= c) throw new Error(`通道 ${ch} 越界 (C=${c})`);
+  const out = new Float32Array(h * w);
+  // 行优先: idx = (i*w + j)*c + ch
+  for (let i = 0; i < h * w; i++) {
+    out[i] = flat[i * c + ch];
+  }
+  return out;
+}
+
+function getPersChannelMode() {
+  const el = document.querySelector('input[name="persChannel"]:checked');
+  return el ? el.value : "0";
+}
+
+/** 根据 channel_power_bins 刷新单通道标签文案 */
+function updatePersChannelUI(nChannels, bins) {
+  const field = $("persChannelField");
+  if (!field) return;
+  const show = state.kind === "persistence" && nChannels > 1;
+  field.style.display = show ? "block" : "none";
+  if (!show) return;
+
+  const labels = field.querySelectorAll('input[name="persChannel"]');
+  labels.forEach((inp) => {
+    const lab = inp.parentElement;
+    if (inp.value === "rgb") {
+      lab.style.display = nChannels >= 3 ? "" : "none";
+      return;
+    }
+    const ch = parseInt(inp.value, 10);
+    if (ch >= nChannels) {
+      lab.style.display = "none";
+      return;
+    }
+    lab.style.display = "";
+    const binTxt = bins && bins[ch] != null ? ` (bins=${bins[ch]})` : "";
+    lab.lastChild.textContent = ` ch${ch + 1}${binTxt}`;
+  });
+  const hint = $("persChannelHint");
+  if (hint) {
+    const binsStr = bins ? bins.join(",") : "?";
+    hint.textContent = `${nChannels} 通道 · power_bins=[${binsStr}] · 单通道热图 / 三通道 RGB`;
+  }
 }
 
 function applyMagnitudeTransform(flat, mode) {
@@ -230,6 +280,10 @@ async function openFile() {
     }
 
     $("timesViewField").style.display = kind === "times" ? "block" : "none";
+    // 通道面板在 loadSample 后根据 n_channels 显示
+    $("persChannelField").style.display = "none";
+    state.nChannels = 1;
+    state.channelBins = null;
 
     await loadSample(0);
     setStatus(`已打开: ${info.path}  (${info.n_samples} 样本)`);
@@ -259,8 +313,20 @@ async function loadSample(index) {
     decoded.mag = decodeF32(payload.mag);
     if (payload.real) decoded.real = decodeF32(payload.real);
     if (payload.imag) decoded.imag = decodeF32(payload.imag);
+    // 多通道 persistence: channels shape [H,W,C]
+    if (payload.channels) {
+      decoded.channels = decodeF32(payload.channels);
+      decoded.nChannels = payload.n_channels || decoded.channels.shape[2] || 1;
+    } else {
+      decoded.nChannels = payload.n_channels || 1;
+    }
 
     state.sample = decoded;
+    state.nChannels = decoded.nChannels;
+    const axes = decoded.axes || {};
+    state.channelBins = axes.channel_power_bins || null;
+    updatePersChannelUI(state.nChannels, state.channelBins);
+
     $("sampleLabel").innerHTML = payload.label
       ? `<span class="label-tag">${payload.label}</span>`
       : `<span class="label-tag">sample ${index}</span>`;
@@ -269,7 +335,7 @@ async function loadSample(index) {
       : "(无 metadata)";
 
     renderPlot();
-    setStatus(`样本 ${index} 已加载`);
+    setStatus(`样本 ${index} 已加载` + (state.nChannels > 1 ? ` · ${state.nChannels}ch` : ""));
   } catch (err) {
     setStatus("加载样本失败: " + err.message, "error");
   }
@@ -287,25 +353,45 @@ function renderPlot() {
   }
 }
 
+function resolveHeatmapPlane() {
+  /** 返回 { flat, h, w, chLabel } 用于单通道热图或 RGB 源 */
+  const kind = state.kind;
+  const sample = state.sample;
+  const axes = sample.axes || {};
+
+  if (kind === "persistence" && sample.channels && sample.nChannels > 1) {
+    const mode = getPersChannelMode();
+    const { data, shape } = sample.channels;
+    const [h, w, c] = shape;
+    if (mode === "rgb") {
+      return { mode: "rgb", flat: data, shape, h, w, c, chLabel: "RGB" };
+    }
+    const ch = parseInt(mode, 10) || 0;
+    const flat = extractChannel(data, shape, ch);
+    const bins = state.channelBins;
+    const binTxt = bins && bins[ch] != null ? `bins=${bins[ch]}` : `ch${ch + 1}`;
+    return { mode: "single", flat, h, w, chLabel: `ch${ch + 1} (${binTxt})` };
+  }
+
+  const { mag } = sample;
+  const [h, w] = mag.shape;
+  return { mode: "single", flat: mag.data, h, w, chLabel: "" };
+}
+
 function renderHeatmap(cmap) {
   const kind = state.kind;
-  const { mag, axes } = state.sample;
-  const flat = mag.data;
-  const [h, w] = mag.shape;
+  const axes = state.sample.axes || {};
+  const plane = resolveHeatmapPlane();
   const mode = getNormMode();
-  const transformed = applyMagnitudeTransform(flat, mode);
-  const { lo, hi } = computeRange(transformed);
-  state.lastLo = lo;
-  state.lastHi = hi;
-  $("rangeText").textContent = `${lo.toFixed(3)} ~ ${hi.toFixed(3)}`;
-
-  // z 用变换后的值，Plotly zmin/zmax 做 clip 映射
-  const z = reshape2d(transformed, [h, w]);
+  const label =
+    ($("sampleLabel").textContent || "").trim() || `sample ${state.index}`;
 
   let x = null;
   let y = null;
   let xTitle = "time index";
   let yTitle = "freq index";
+  const h = plane.h;
+  const w = plane.w;
 
   if (kind === "stft") {
     if (axes.T && axes.T.length === w) {
@@ -327,8 +413,101 @@ function renderHeatmap(cmap) {
     }
   }
 
-  const label =
-    ($("sampleLabel").textContent || "").trim() || `sample ${state.index}`;
+  // ---- 三通道 RGB 显示 ----
+  if (plane.mode === "rgb") {
+    const { flat, shape } = plane;
+    const [, , c] = shape;
+    const nCh = Math.min(3, c);
+    // 每通道独立百分位归一化到 0..255
+    const rgb = new Array(h);
+    const { pLo, pHi } = getPercentiles();
+    const chRanges = [];
+    for (let ch = 0; ch < nCh; ch++) {
+      const chFlat = extractChannel(flat, shape, ch);
+      const transformed = applyMagnitudeTransform(chFlat, mode);
+      let lo, hi;
+      if ($("fixAbs").checked) {
+        lo = parseFloat($("absLo").value);
+        hi = parseFloat($("absHi").value);
+        if (Number.isNaN(lo) || Number.isNaN(hi) || lo >= hi) {
+          lo = percentileApprox(transformed, pLo);
+          hi = percentileApprox(transformed, pHi);
+        }
+      } else {
+        lo = percentileApprox(transformed, pLo);
+        hi = percentileApprox(transformed, pHi);
+        if (hi <= lo) hi = lo + 1e-6;
+      }
+      chRanges.push({ lo, hi, transformed });
+    }
+    // 用 ch0 范围写入 range 显示
+    state.lastLo = chRanges[0].lo;
+    state.lastHi = chRanges[0].hi;
+    $("rangeText").textContent = chRanges
+      .map((r, i) => `ch${i + 1}:${r.lo.toFixed(3)}~${r.hi.toFixed(3)}`)
+      .join(" | ");
+
+    for (let i = 0; i < h; i++) {
+      rgb[i] = new Array(w);
+      for (let j = 0; j < w; j++) {
+        const pix = [0, 0, 0];
+        for (let ch = 0; ch < nCh; ch++) {
+          const { lo, hi, transformed } = chRanges[ch];
+          const v = transformed[i * w + j];
+          const t = Math.max(0, Math.min(1, (v - lo) / (hi - lo)));
+          pix[ch] = Math.round(t * 255);
+        }
+        rgb[i][j] = pix;
+      }
+    }
+
+    const data = [
+      {
+        type: "image",
+        z: rgb,
+        colormodel: "rgb",
+        hovertemplate: "x=%{x}<br>y=%{y}<extra></extra>",
+      },
+    ];
+    // image 用像素坐标; 若有物理轴则叠加 layout 标题说明
+    const titleExtra = plane.chLabel ? ` · ${plane.chLabel}` : "";
+    const layout = {
+      title: {
+        text: `${String(kind).toUpperCase()} · ${label}${titleExtra}`,
+        font: { size: 14, color: "#e7ecf3" },
+      },
+      paper_bgcolor: "#0f1419",
+      plot_bgcolor: "#0f1419",
+      margin: { l: 60, r: 40, t: 48, b: 50 },
+      xaxis: {
+        title: xTitle + (x ? "" : " (pixel)"),
+        color: "#8b9bb4",
+        gridcolor: "#243044",
+        scaleanchor: "y",
+        scaleratio: 1,
+      },
+      yaxis: {
+        title: yTitle + (y ? "" : " (pixel)"),
+        color: "#8b9bb4",
+        gridcolor: "#243044",
+        autorange: "reversed", // image 默认顶行=0
+      },
+      font: { color: "#e7ecf3" },
+    };
+    Plotly.react("plot", data, layout, { responsive: true, displayModeBar: true });
+    return;
+  }
+
+  // ---- 单通道热图 ----
+  const flat = plane.flat;
+  const transformed = applyMagnitudeTransform(flat, mode);
+  const { lo, hi } = computeRange(transformed);
+  state.lastLo = lo;
+  state.lastHi = hi;
+  $("rangeText").textContent = `${lo.toFixed(3)} ~ ${hi.toFixed(3)}`;
+
+  const z = reshape2d(transformed, [h, w]);
+  const titleExtra = plane.chLabel ? ` · ${plane.chLabel}` : "";
 
   const data = [
     {
@@ -343,13 +522,15 @@ function renderHeatmap(cmap) {
         title: { text: mode === "dB" ? "dB" : "mag", side: "right" },
         thickness: 14,
       },
-      hovertemplate:
-        "x=%{x}<br>y=%{y}<br>z=%{z:.3f}<extra></extra>",
+      hovertemplate: "x=%{x}<br>y=%{y}<br>z=%{z:.3f}<extra></extra>",
     },
   ];
 
   const layout = {
-    title: { text: `${String(kind).toUpperCase()} · ${label}`, font: { size: 14, color: "#e7ecf3" } },
+    title: {
+      text: `${String(kind).toUpperCase()} · ${label}${titleExtra}`,
+      font: { size: 14, color: "#e7ecf3" },
+    },
     paper_bgcolor: "#0f1419",
     plot_bgcolor: "#0f1419",
     margin: { l: 60, r: 40, t: 48, b: 50 },
@@ -515,6 +696,9 @@ function bindEvents() {
     el.addEventListener("change", renderPlot);
   });
   document.querySelectorAll('input[name="timesView"]').forEach((el) => {
+    el.addEventListener("change", renderPlot);
+  });
+  document.querySelectorAll('input[name="persChannel"]').forEach((el) => {
     el.addEventListener("change", renderPlot);
   });
   ["pLo", "pHi", "selCmap", "absLo", "absHi"].forEach((id) => {

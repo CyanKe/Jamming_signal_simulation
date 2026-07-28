@@ -95,7 +95,16 @@ def _load_axes(f: h5py.File) -> Dict[str, Any]:
             np.array(f["power_centers"][:]).squeeze().astype(np.float64).tolist()
         )
     if "num_power_bins" in f:
-        axes["num_power_bins"] = int(np.array(f["num_power_bins"][:]).squeeze())
+        nb = np.array(f["num_power_bins"][:]).squeeze()
+        axes["num_power_bins"] = int(nb) if np.ndim(nb) == 0 else nb.astype(int).tolist()
+    if "channel_power_bins" in f:
+        axes["channel_power_bins"] = (
+            np.array(f["channel_power_bins"][:]).squeeze().astype(int).tolist()
+        )
+    if "target_size" in f:
+        axes["target_size"] = (
+            np.array(f["target_size"][:]).squeeze().astype(int).tolist()
+        )
     return axes
 
 
@@ -206,16 +215,33 @@ def _read_sample(mat_path: Path, kind: str, index: int) -> Dict[str, Any]:
 
         if kind == "persistence":
             arr = sample.astype(np.float32)
-            # [bins, Nfft] → [Nfft, bins]
+            # MATLAB v7.3 存 [N,H,W] → HDF5 切片 [W,H]
+            #          存 [N,H,W,C] → HDF5 切片 [C,W,H]
+            n_channels = 1
             if arr.ndim == 2:
+                # [bins, Nfft] → [Nfft, bins]
                 arr = arr.T
-            return {
+            elif arr.ndim == 3:
+                # [C, W, H] → [H, W, C]
+                arr = np.transpose(arr, (2, 1, 0))
+                n_channels = int(arr.shape[2])
+                # 默认返回 ch0 供现有前端 2D 显示; 全通道放 channels
+                channels = arr
+                arr = arr[:, :, 0]
+            else:
+                raise HTTPException(400, f"不支持的 persistence 维度: {arr.shape}")
+            out = {
                 "kind": kind,
                 "index": index,
                 "n_samples": n,
                 "mag": _encode_f32(arr),
+                "n_channels": n_channels,
                 "axes": axes,
             }
+            if n_channels > 1:
+                # 附加全部通道 [H,W,C] 供前端切换
+                out["channels"] = _encode_f32(channels)
+            return out
 
     raise HTTPException(400, f"未知 kind: {kind}")
 

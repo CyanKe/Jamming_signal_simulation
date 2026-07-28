@@ -82,7 +82,9 @@ function cfg = config()
     % ==================== 持续时间谱参数 (Persistence Spectrum) ====================
     % method: 'custom' | 'matlab'
     cfg.persistence.method = 'custom';
-    cfg.persistence.num_power_bins = 64;
+    cfg.persistence.num_power_bins = 224;              % 单通道功率分箱 (兼容)
+    cfg.persistence.channel_power_bins = [224, 112, 32]; % 多通道; [] 或标量 = 单通道
+    cfg.persistence.target_size = [224, 224];          % 多通道输出 [freq, power]
     % custom 功率轴: 'fixed' 全库统一 | 'auto' 每目录按样本1估算
     cfg.persistence.power_range_mode = 'fixed';  % 'fixed' | 'auto'
     cfg.persistence.power_range_db = [0, 70];     % fixed: [lo, hi] dB

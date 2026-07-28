@@ -10,6 +10,8 @@
 %   convert_times_to_stft('mydir', 'Noverlap', 200)             % 自定义重叠长度
 %   convert_times_to_stft('mydir', 'force', true)               % 覆盖已有文件
 %   convert_times_to_stft('mydir', 'compute_persistence', true, 'num_power_bins', 128)
+%   convert_times_to_stft('mydir', 'compute_persistence', true, ...
+%       'channel_power_bins', [224 112 32], 'target_size', [224 224])
 % ==========================================================
 
 function convert_times_to_stft(varargin)
@@ -21,6 +23,8 @@ function convert_times_to_stft(varargin)
     p.addParameter('fs', 80e6, @isnumeric);
     p.addParameter('compute_persistence', false, @islogical);
     p.addParameter('num_power_bins', 224, @isnumeric);
+    p.addParameter('channel_power_bins', [], @isnumeric);
+    p.addParameter('target_size', [224, 224], @(v) isnumeric(v) && (isempty(v) || numel(v)==2));
     p.addParameter('method', 'custom', @(s) ischar(s) || isstring(s));
     p.addParameter('power_range_mode', 'fixed', @(s) ischar(s) || isstring(s));
     p.addParameter('power_range_db', [0, 70], @(v) isnumeric(v) && numel(v) == 2);
@@ -35,7 +39,16 @@ function convert_times_to_stft(varargin)
     Nfft = p.Results.Nfft;
     fs = p.Results.fs;
     compute_persistence = p.Results.compute_persistence;
-    num_power_bins = p.Results.num_power_bins;
+    if isempty(p.Results.channel_power_bins)
+        channel_power_bins = double(p.Results.num_power_bins(:).');
+    else
+        channel_power_bins = double(p.Results.channel_power_bins(:).');
+    end
+    num_power_bins = max(channel_power_bins); %#ok<NASGU>
+    target_size = p.Results.target_size;
+    if ~isempty(target_size)
+        target_size = double(target_size(:).');
+    end
     pers_method = lower(char(p.Results.method));
     pr_opts = struct( ...
         'power_range_mode', lower(char(p.Results.power_range_mode)), ...
@@ -116,7 +129,8 @@ function convert_times_to_stft(varargin)
     fprintf('STFT参数: Nwin=%d, Noverlap=%d, Nfft=%d, fs=%.0f MHz\n', ...
         Nwin, Noverlap, Nfft, fs/1e6);
     if compute_persistence
-        fprintf('Persistence: 启用 (num_power_bins=%d)\n', num_power_bins);
+        fprintf('Persistence: 启用 (bins=%s, target_size=%s)\n', ...
+            mat2str(channel_power_bins), mat2str(target_size));
     end
     fprintf('覆盖模式: %s\n', string(force));
 
@@ -209,19 +223,40 @@ function convert_times_to_stft(varargin)
             end
 
             t_pers = tic;
-            all_persistences = zeros(SAMPLE_NUM, Nfft, num_power_bins, 'single');
+            ts_use = target_size;
+            if isempty(ts_use) && numel(channel_power_bins) > 1
+                ts_use = [Nfft, max(channel_power_bins)];
+            end
+            [P0, ~, ch_info] = compute_persistence_channels( ...
+                squeeze(all_stfts(1, :, :)), channel_power_bins, [0 1], pers_method, ts_use);
+            target_size = ch_info.target_size; %#ok<NASGU>
+            if ndims(P0) == 3
+                [H_out, W_out, C_out] = size(P0);
+                all_persistences = zeros(SAMPLE_NUM, H_out, W_out, C_out, 'single');
+                is_multi = true;
+            else
+                [H_out, W_out] = size(P0);
+                C_out = 1;
+                all_persistences = zeros(SAMPLE_NUM, H_out, W_out, 'single');
+                is_multi = false;
+            end
             all_power_centers = [];
             persistence_method = pers_method; %#ok<NASGU>
 
             if strcmp(pers_method, 'matlab')
-                fprintf('  模式: matlab (每样本独立功率轴, 时间窗百分比)\n');
-                all_power_centers = zeros(SAMPLE_NUM, num_power_bins, 'single');
+                fprintf('  模式: matlab | 输出 %d×%d×%d\n', H_out, W_out, C_out);
+                all_power_centers = zeros(SAMPLE_NUM, W_out, 'single');
                 power_range_db = []; %#ok<NASGU>
                 power_range_mode = 'per_sample'; %#ok<NASGU>
                 for i = 1:SAMPLE_NUM
-                    [all_persistences(i, :, :), ~, pc] = compute_duration_spectrum( ...
-                        squeeze(all_stfts(i, :, :)), num_power_bins, [], 'matlab');
-                    all_power_centers(i, :) = pc;
+                    [P, pc, ~] = compute_persistence_channels( ...
+                        squeeze(all_stfts(i, :, :)), channel_power_bins, [], 'matlab', ts_use);
+                    if is_multi
+                        all_persistences(i, :, :, :) = single(P);
+                    else
+                        all_persistences(i, :, :) = single(P);
+                    end
+                    all_power_centers(i, :) = single(pc);
                     if mod(i, 500) == 0
                         fprintf('    Persistence: %d/%d (%.0fs)\n', i, SAMPLE_NUM, toc(t_pers));
                     end
@@ -232,11 +267,16 @@ function convert_times_to_stft(varargin)
                 [global_pwr_range, pr_info] = resolve_custom_power_range(stft_ref, pr_opts);
                 power_range_db = global_pwr_range; %#ok<NASGU>
                 power_range_mode = pr_info.mode; %#ok<NASGU>
-                fprintf('  模式: custom/%s | 功率范围 [%.1f, %.1f] dB (%s)\n', ...
-                    pr_info.mode, global_pwr_range(1), global_pwr_range(2), pr_info.source);
+                fprintf('  模式: custom/%s | 功率 [%.1f, %.1f] dB | 输出 %d×%d×%d\n', ...
+                    pr_info.mode, global_pwr_range(1), global_pwr_range(2), H_out, W_out, C_out);
                 for i = 1:SAMPLE_NUM
-                    [all_persistences(i, :, :), ~, power_centers] = compute_duration_spectrum( ...
-                        squeeze(all_stfts(i, :, :)), num_power_bins, global_pwr_range, 'custom');
+                    [P, power_centers, ~] = compute_persistence_channels( ...
+                        squeeze(all_stfts(i, :, :)), channel_power_bins, global_pwr_range, 'custom', ts_use);
+                    if is_multi
+                        all_persistences(i, :, :, :) = single(P);
+                    else
+                        all_persistences(i, :, :) = single(P);
+                    end
                     if mod(i, 500) == 0
                         fprintf('    Persistence: %d/%d (%.0fs)\n', i, SAMPLE_NUM, toc(t_pers));
                     end
@@ -244,16 +284,16 @@ function convert_times_to_stft(varargin)
             end
             fprintf('  Persistence完成: %.1fs (%d样本)\n', toc(t_pers), SAMPLE_NUM);
 
-            % 保存Persistence
+            save_vars = {'all_persistences', 'num_power_bins', 'channel_power_bins', ...
+                'target_size', 'power_centers', 'persistence_method', ...
+                'power_range_mode', 'power_range_db', 'F'};
             if ~isempty(all_power_centers)
-                save(persist_path, 'all_persistences', 'num_power_bins', 'power_centers', ...
-                    'all_power_centers', 'persistence_method', 'power_range_mode', 'power_range_db', 'F', '-v7.3');
-            else
-                save(persist_path, 'all_persistences', 'num_power_bins', 'power_centers', ...
-                    'persistence_method', 'power_range_mode', 'power_range_db', 'F', '-v7.3');
+                save_vars{end+1} = 'all_power_centers';
             end
+            save(persist_path, save_vars{:}, '-v7.3');
             info = dir(persist_path);
-            fprintf('  已保存: %s (%.1f MB)\n', persist_path, info.bytes / 1e6);
+            fprintf('  已保存: %s (%.1f MB) shape=%s\n', ...
+                persist_path, info.bytes / 1e6, mat2str(size(all_persistences)));
         end
     end
 

@@ -195,21 +195,31 @@ def _read_sample(mat_path: Path, kind: str, index: int) -> Dict[str, Any]:
             }
 
         if kind == "stft":
+            # 复数 STFT：返回 mag / real / imag，供前端切换
+            # 单通道: 模值 / 实部 / 虚部 / 相位
+            # 三通道 RGB: [模值,实部,虚部] / [相位,实部,虚部] / [模值×3]
             if _is_complex_dtype(sample.dtype):
+                real = sample["real"].astype(np.float32)
+                imag = sample["imag"].astype(np.float32)
                 mag = np.sqrt(
-                    sample["real"].astype(np.float64) ** 2
-                    + sample["imag"].astype(np.float64) ** 2
+                    real.astype(np.float64) ** 2 + imag.astype(np.float64) ** 2
                 ).astype(np.float32)
             else:
-                mag = np.abs(sample.astype(np.float32))
+                real = sample.astype(np.float32)
+                imag = np.zeros_like(real)
+                mag = np.abs(real)
             # [Ncol, Nfft] → [Nfft, Ncol]
             if mag.ndim == 2:
                 mag = mag.T
+                real = real.T
+                imag = imag.T
             return {
                 "kind": kind,
                 "index": index,
                 "n_samples": n,
                 "mag": _encode_f32(mag),
+                "real": _encode_f32(real),
+                "imag": _encode_f32(imag),
                 "axes": axes,
             }
 

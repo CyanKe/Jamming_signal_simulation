@@ -34,11 +34,12 @@ Nfft = cfg.stft.Nfft;
 Step = Nwin - Noverlap;
 
 %% 循环生成每种干扰
-len = size(generation_plan, 1);
-SAMPLE_NUM = sum([generation_plan{:, 2}]);
+if ~cfg.clean_lfm.enabled
+    len = size(generation_plan, 1);
+    SAMPLE_NUM = sum([generation_plan{:, 2}]);
 
-tic
-for current_jnr = JNR_values
+    tic
+    for current_jnr = JNR_values
     % 初始化数据容器
     fprintf('当前 JNR = %d dB\n', current_jnr);
     all_times = zeros(SAMPLE_NUM, params.PRI_samp);
@@ -337,12 +338,288 @@ for current_jnr = JNR_values
     end
 
     fprintf('已保存到: %s\n', jnr_output_dir);
+    end
+end  % ~cfg.clean_lfm.enabled
+
+%% ===== 纯LFM信号生成（无干扰）=====
+if cfg.clean_lfm.enabled
+    fprintf('\n===== 纯LFM信号生成（无干扰）=====\n');
+
+    tic
+
+    % 保存原始SNR，循环结束后恢复
+    orig_SNR = params.SNR;
+
+    for current_snr = cfg.clean_lfm.SNR_values
+        fprintf('  当前 SNR = %+d dB\n', current_snr);
+
+        % --- 临时设置 SNR ---
+        params.SNR = current_snr;
+        SAMPLE_NUM_CLEAN = cfg.clean_lfm.SAMPLE_NUM;
+
+        % --- 生成样本（复用 multi_generation_v2）---
+        [clean_times, clean_metadata] = multi_generation_v2(...
+            'clean', params, NaN, SAMPLE_NUM_CLEAN, cfg);
+
+        % 修正 metadata: 纯LFM无JNR，补充SNR字段
+        for m = 1:SAMPLE_NUM_CLEAN
+            clean_metadata(m).JNR = NaN;
+            clean_metadata(m).SNR = current_snr;
+        end
+
+        % --- 创建输出目录 ---
+        if ~isempty(cfg.output.custom_dirname)
+            time_str = cfg.output.custom_dirname;
+        elseif cfg.output.use_datetime
+            time_str = char(datetime('now', 'Format', 'yyMMdd'));
+        else
+            time_str = 'default';
+        end
+        output_dir = fullfile(root_path, 'output', time_str);
+        snr_output_dir = fullfile(output_dir, sprintf('SNR_%+d', current_snr));
+        if ~exist(snr_output_dir, 'dir')
+            mkdir(snr_output_dir);
+        end
+
+        % --- 计算STFT ---
+        need_stft = cfg.output.save_stft || cfg.output.save_persistence;
+        if need_stft
+            fprintf('    正在计算STFT (%d 样本)...\n', SAMPLE_NUM_CLEAN);
+            t_stft = tic;
+            win = hamming(Nwin);
+            N_cols_clean = floor((params.N_total - Noverlap) / Step);
+            clean_stfts = zeros(SAMPLE_NUM_CLEAN, Nfft, N_cols_clean);
+            for i = 1:SAMPLE_NUM_CLEAN
+                [S, F, T] = spectrogram(clean_times(i, 1:params.PRI_samp), ...
+                    win, Noverlap, Nfft, params.fs, 'centered');
+                clean_stfts(i, :, :) = S;
+            end
+            fprintf('    STFT耗时: %.2f s\n', toc(t_stft));
+        end
+
+        % --- 计算持续时间谱 ---
+        if cfg.output.save_persistence
+            fprintf('    正在计算持续时间谱 (%d 样本)...\n', SAMPLE_NUM_CLEAN);
+            t_pers = tic;
+            ch_cfg = resolve_persistence_channel_config(cfg);
+            channel_power_bins = ch_cfg.channel_power_bins;
+            num_power_bins = ch_cfg.num_power_bins; %#ok<NASGU>
+            target_size = ch_cfg.target_size;
+            if isempty(target_size) && ch_cfg.is_multichannel
+                target_size = [Nfft, max(channel_power_bins)];
+            end
+            if isfield(cfg.persistence, 'method') && ~isempty(cfg.persistence.method)
+                pers_method = lower(char(cfg.persistence.method));
+            else
+                pers_method = 'custom';
+            end
+
+            stft0 = squeeze(clean_stfts(1, :, :));
+            [pers0, ~, ch_info0] = compute_persistence_channels(...
+                stft0, channel_power_bins, [0 1], pers_method, target_size);
+            if ndims(pers0) == 3
+                [H_out, W_out, C_out] = size(pers0);
+                clean_persistences = zeros(SAMPLE_NUM_CLEAN, H_out, W_out, C_out);
+                is_multi_pers = true;
+            else
+                [H_out, W_out] = size(pers0);
+                C_out = 1;
+                clean_persistences = zeros(SAMPLE_NUM_CLEAN, H_out, W_out);
+                is_multi_pers = false;
+            end
+            clean_all_power_centers = [];
+            channel_power_bins_saved = channel_power_bins; %#ok<NASGU>
+            target_size_saved = ch_info0.target_size; %#ok<NASGU>
+
+            if strcmp(pers_method, 'matlab')
+                fprintf('    模式: matlab | bins=%s | 输出 %dx%dx%d\n', ...
+                    mat2str(channel_power_bins), H_out, W_out, C_out);
+                clean_all_power_centers = zeros(SAMPLE_NUM_CLEAN, W_out);
+                for i = 1:SAMPLE_NUM_CLEAN
+                    [P, pc, ~] = compute_persistence_channels(...
+                        squeeze(clean_stfts(i, :, :)), channel_power_bins, [], 'matlab', target_size);
+                    if is_multi_pers
+                        clean_persistences(i, :, :, :) = P;
+                    else
+                        clean_persistences(i, :, :) = P;
+                    end
+                    clean_all_power_centers(i, :) = pc;
+                end
+                power_centers = clean_all_power_centers(1, :);
+            else
+                pr_opts = struct();
+                if isfield(cfg.persistence, 'power_range_mode')
+                    pr_opts.power_range_mode = cfg.persistence.power_range_mode;
+                end
+                if isfield(cfg.persistence, 'power_range_db')
+                    pr_opts.power_range_db = cfg.persistence.power_range_db;
+                end
+                if isfield(cfg.persistence, 'power_percentile_lo')
+                    pr_opts.power_percentile_lo = cfg.persistence.power_percentile_lo;
+                end
+                if isfield(cfg.persistence, 'power_margin_db')
+                    pr_opts.power_margin_db = cfg.persistence.power_margin_db;
+                end
+                stft_ref = squeeze(clean_stfts(1, :, :));
+                [global_pwr_range, pr_info] = resolve_custom_power_range(stft_ref, pr_opts);
+                power_range_db = global_pwr_range; %#ok<NASGU>
+                power_range_mode = pr_info.mode; %#ok<NASGU>
+                fprintf('    模式: custom/%s | 功率 [%.1f, %.1f] dB | bins=%s | 输出 %dx%dx%d\n', ...
+                    pr_info.mode, global_pwr_range(1), global_pwr_range(2), ...
+                    mat2str(channel_power_bins), H_out, W_out, C_out);
+                for i = 1:SAMPLE_NUM_CLEAN
+                    [P, power_centers, ~] = compute_persistence_channels(...
+                        squeeze(clean_stfts(i, :, :)), channel_power_bins, ...
+                        global_pwr_range, 'custom', target_size);
+                    if is_multi_pers
+                        clean_persistences(i, :, :, :) = P;
+                    else
+                        clean_persistences(i, :, :) = P;
+                    end
+                end
+            end
+            fprintf('    持续时间谱耗时: %.2f s\n', toc(t_pers));
+        end
+
+        % --- 生成 RGB Colormap ---
+        if cfg.output.save_stft_rgb
+            fprintf('    正在生成 RGB colormap (%d 样本)...\n', SAMPLE_NUM_CLEAN);
+            t_rgb = tic;
+            cmaps = cfg.stft_rgb.colormaps;
+            num_cmaps = length(cmaps);
+            norm_mode = cfg.stft_rgb.normalization;
+            sample_size = min(50, SAMPLE_NUM_CLEAN);
+            sample_indices = randperm(SAMPLE_NUM_CLEAN, sample_size);
+            sample_abs = abs(clean_stfts(sample_indices, :, :));
+            switch norm_mode
+                case 'db'
+                    sample_mag = 20 * log10(sample_abs + eps);
+                case 'linear'
+                    sample_mag = sample_abs;
+            end
+            norm_params.lo = prctile(sample_mag(:), cfg.stft_rgb.percentile_range(1));
+            norm_params.hi = prctile(sample_mag(:), cfg.stft_rgb.percentile_range(2));
+            fprintf('    %s归一化范围: [%.1f, %.1f]\n', upper(norm_mode), norm_params.lo, norm_params.hi);
+
+            for c = 1:num_cmaps
+                cmap_name = cmaps{c};
+                t_cmap = tic;
+                rgb_data = zeros(SAMPLE_NUM_CLEAN, Nfft, N_cols_clean, 3, 'uint8');
+                for i = 1:SAMPLE_NUM_CLEAN
+                    rgb_data(i, :, :, :) = apply_colormap_to_stft(...
+                        squeeze(clean_stfts(i, :, :)), cmap_name, norm_params, norm_mode);
+                end
+                varname = ['rgb_', cmap_name];
+                eval([varname ' = rgb_data;']);
+                fprintf('    [%d/%d] %s: %dx%dx%d, 耗时 %.1fs\n', ...
+                    c, num_cmaps, cmap_name, Nfft, N_cols_clean, 3, toc(t_cmap));
+            end
+            colormap_names = cmaps; %#ok<NASGU>
+            fprintf('    RGB总耗时: %.2f s\n', toc(t_rgb));
+        end
+
+        % --- 提取特征 ---
+        if cfg.output.extract_features
+            fprintf('    正在提取特征...\n');
+            feature_cell = cell(SAMPLE_NUM_CLEAN, 1);
+            features_dir = fullfile(root_path, 'utils', 'features');
+            for i = 1:SAMPLE_NUM_CLEAN
+                feature_cell{i} = extract_signal_features(...
+                    clean_times(i, 1:params.PRI_samp), params.fs);
+                if mod(i, 100) == 0
+                    fprintf('      已处理 %d/%d 样本\n', i, SAMPLE_NUM_CLEAN);
+                end
+            end
+            clean_features = feature_cell{1};
+            for i = 2:SAMPLE_NUM_CLEAN
+                clean_features(i) = feature_cell{i};
+            end
+        end
+
+        % --- 保存数据 ---
+        dataset_type = cfg.output.dataset_type;
+        path_times  = fullfile(snr_output_dir, sprintf('%s_echo_times.mat', dataset_type));
+        path_stfts  = fullfile(snr_output_dir, sprintf('%s_echo_stfts.mat', dataset_type));
+        path_pers   = fullfile(snr_output_dir, sprintf('%s_echo_persistences.mat', dataset_type));
+        path_rgb    = fullfile(snr_output_dir, sprintf('%s_echo_stfts_rgb.mat', dataset_type));
+        path_meta   = fullfile(snr_output_dir, sprintf('%s_echo_metadata.json', dataset_type));
+        path_feat   = fullfile(snr_output_dir, sprintf('%s_echo_features.json', dataset_type));
+        path_plan_mat  = fullfile(snr_output_dir, 'generation_plan.mat');
+        path_plan_json = fullfile(snr_output_dir, 'generation_plan.json');
+
+        if cfg.output.save_stft
+            all_stfts = single(clean_stfts);
+            save(path_stfts, 'all_stfts', '-v7.3', '-nocompression');
+        end
+        if cfg.output.save_persistence
+            all_persistences = single(clean_persistences);
+            persistence_method = pers_method; %#ok<NASGU>
+            channel_power_bins = channel_power_bins_saved; %#ok<NASGU>
+            target_size = target_size_saved; %#ok<NASGU>
+            save_vars = {'all_persistences', 'num_power_bins', 'channel_power_bins', ...
+                'target_size', 'power_centers', 'persistence_method', ...
+                'power_range_mode', 'power_range_db', 'F'};
+            if ~isempty(clean_all_power_centers)
+                all_power_centers = single(clean_all_power_centers); %#ok<NASGU>
+                save_vars{end+1} = 'all_power_centers';
+            end
+            save(path_pers, save_vars{:}, '-v7.3');
+            info_p = dir(path_pers);
+            fprintf('    Persistence已保存: %s (%.1f MB) shape=%s\n', ...
+                path_pers, info_p.bytes / 1e6, mat2str(size(all_persistences)));
+        end
+        if cfg.output.save_stft_rgb
+            save_vars = {};
+            for c = 1:length(cmaps)
+                save_vars{end+1} = ['rgb_', cmaps{c}]; %#ok<AGROW>
+            end
+            save_vars{end+1} = 'colormap_names';
+            save_vars{end+1} = 'F';
+            save_vars{end+1} = 'T';
+            save_vars{end+1} = 'norm_params';
+            save(path_rgb, save_vars{:}, '-v7.3');
+            info = dir(path_rgb);
+            fprintf('    RGB已保存: %s (%.1f MB)\n', path_rgb, info.bytes / 1e6);
+        end
+
+        all_times = single(clean_times);
+        save(path_times, 'all_times', '-v7.3', '-nocompression');
+
+        % 保存 generation_plan
+        clean_plan = {'clean', SAMPLE_NUM_CLEAN};
+        save(path_plan_mat, 'clean_plan', '-v7.3', '-nocompression');
+        plan_struct = struct('jam_types', {{'clean'}}, 'sample_num', SAMPLE_NUM_CLEAN);
+        fid = fopen(path_plan_json, 'w', 'n', 'UTF-8');
+        fprintf(fid, '%s', jsonencode(plan_struct));
+        fclose(fid);
+
+        % 保存 metadata
+        jsonStr = jsonencode(clean_metadata);
+        fid = fopen(path_meta, 'w', 'n', 'UTF-8');
+        fprintf(fid, '%s', jsonStr);
+        fclose(fid);
+
+        % 保存 features
+        if cfg.output.extract_features
+            jsonStr = jsonencode(clean_features);
+            fid = fopen(path_feat, 'w', 'n', 'UTF-8');
+            fprintf(fid, '%s', jsonStr);
+            fclose(fid);
+        end
+
+        fprintf('    已保存 %d 个纯LFM样本到: %s\n', SAMPLE_NUM_CLEAN, snr_output_dir);
+    end
+
+    % 恢复原始 SNR
+    params.SNR = orig_SNR;
+    fprintf('纯LFM信号生成完成!\n');
 end
+
 toc
 
 fprintf('数据生成完成!\n');
 
-if SAMPLE_NUM < 100
+if exist('SAMPLE_NUM', 'var') && SAMPLE_NUM < 100
     % 根据启用的可视化类型确定行数
     has_stft  = cfg.output.save_stft && exist('all_stfts','var');
     has_pers  = cfg.output.save_persistence && exist('all_persistences','var');

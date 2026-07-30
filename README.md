@@ -119,13 +119,49 @@ run('main/main_generation_v2.m');  % 执行生成
 - 干噪比 (JNR)
 - 干扰带宽等特定参数
 
+### 纯LFM信号（无干扰）
+
+如需生成纯LFM信号（仅回波+噪声，无干扰），在 `config.m` 中设置：
+
+```matlab
+cfg.clean_lfm.enabled = true;          % 启用纯LFM生成
+cfg.clean_lfm.SNR_values = -10:5:10;   % SNR 扫描范围 (dB)
+cfg.clean_lfm.SAMPLE_NUM = 200;        % 每个 SNR 值的样本数
+```
+
+纯LFM信号保存到 `SNR_<value>/` 子目录（与 `JNR_<value>/` 并列），文件格式与干扰信号一致，可配置的参数包括：
+
+| 参数 | 默认值 | 说明 |
+| :--- | :--- | :--- |
+| `cfg.clean_lfm.enabled` | `false` | 是否启用纯LFM生成 |
+| `cfg.clean_lfm.SNR_values` | `-10:5:10` | SNR 扫描值 (dB)，可为标量或向量 |
+| `cfg.clean_lfm.SAMPLE_NUM` | `100` | 每个 SNR 值的样本数 |
+
 ---
 
 ## 数据集格式说明
 
 ### 输出文件
 
-每个 JNR 目录下生成以下文件：
+数据按 SNR/JNR 分目录存储：
+
+```text
+output/<dirname>/
+├── JNR_+0/              # 干扰信号（按干噪比分目录）
+│   ├── test_echo_times.mat
+│   ├── test_echo_stfts.mat
+│   └── ...
+├── JNR_+5/
+│   └── ...
+├── SNR_-10/             # 纯LFM信号（按信噪比分目录，可选）
+│   ├── test_echo_times.mat
+│   ├── test_echo_stfts.mat
+│   └── ...
+└── SNR_+0/
+    └── ...
+```
+
+每个 JNR/SNR 目录下生成以下文件：
 
 | 文件名 | 格式 | 说明 |
 | :--- | :--- | :--- |
@@ -210,7 +246,12 @@ run('main/main_generation_v2.m');  % 执行生成
     "sample_idx": 1,
     "jam_types": ["DFTJ"],
     "JNR": 10,
+    "SNR": -5,
     "pos": 1234,
+    "B": 12500000,
+    "taup": 2.3e-05,
+    "mu": 5.43e11,
+    "sweep_dir": 1,
     "jam_params": {
       "dftj_k": 5
     }
@@ -221,10 +262,15 @@ run('main/main_generation_v2.m');  % 执行生成
 | 字段 | 类型 | 说明 |
 | :--- | :--- | :--- |
 | `sample_idx` | int | 样本序号 (1-based) |
-| `jam_types` | string[] | 干扰类型缩写数组, 单一干扰如 `["DFTJ"]`, 混合干扰如 `["DFTJ","AJ"]` |
-| `JNR` | float | 干噪比 (dB) |
+| `jam_types` | string[] | 干扰类型缩写数组，单一干扰如 `["DFTJ"]`，混合干扰如 `["DFTJ","AJ"]`，纯LFM为 `"clean"` |
+| `JNR` | float | 干噪比 (dB)，纯LFM时为 `NaN` |
+| `SNR` | float | 信噪比 (dB)，仅纯LFM样本含此字段 |
 | `pos` | int | 目标在 PRI 中的起始采样位置 |
-| `jam_params` | object | 该样本的干扰生成参数 (因类型而异) |
+| `B` | float | LFM 带宽 (Hz) |
+| `taup` | float | LFM 脉宽 (s) |
+| `mu` | float | LFM 调频斜率 (Hz/s) |
+| `sweep_dir` | int | 扫频方向 (`1`=上扫, `-1`=下扫) |
+| `jam_params` | object | 该样本的干扰生成参数 (因类型而异，纯LFM为空 `{}`) |
 
 #### `all_features` — 多域特征
 
@@ -276,6 +322,8 @@ run('main/main_generation_v2.m');  % 执行生成
 > **注意**: 上述索引基于 `config_example.m` 中 `generation_plan` 的顺序。标签在 metadata 中以**字符串缩写**存储 (`jam_types` 字段), 不使用整数索引。若需整数标签, 可按此表映射, 或从 `generation_plan` 的顺序推导。
 
 **混合干扰标签**格式: `"DFTJ+AJ"` (用 `+` 连接多个缩写, 按字母序排列)。
+
+**纯LFM标签**: `jam_types` 为 `"clean"`，表示无干扰样本。在分类任务中可作为第 18 类（"无干扰"），或用于 SNR 敏感性分析。
 
 ### PyTorch 数据加载
 

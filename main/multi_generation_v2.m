@@ -65,6 +65,11 @@ for m = 1:data_num
 
     for jam_type = jam_types
         switch jam_type
+            case 'clean'  % 纯LFM信号，不生成干扰
+                % sum_jam 保持为零向量，无需任何操作
+                % 最终 rx = As * tx * random_phase + white_noise
+                pure_jam = zeros(1, N_total);
+
             case 'DFTJ'  % DFTJ - 密集假目标干扰
                 jam_params = params;
                 jam_params.JNR = current_jnr;

@@ -146,6 +146,42 @@ function getTimesView() {
   return el ? el.value : "mag";
 }
 
+function getStftView() {
+  const el = document.querySelector('input[name="stftView"]:checked');
+  return el ? el.value : "mag";
+}
+
+/** 计算相位 atan2(imag, real)，返回 Float32Array */
+function computePhase(realArr, imagArr) {
+  const n = realArr.length;
+  const out = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    out[i] = Math.atan2(imagArr[i], realArr[i]);
+  }
+  return out;
+}
+
+/**
+ * 将三个 Float32Array 打包为 HWC [H,W,3] 扁平数据
+ * 用于 STFT 三通道 RGB 可视化
+ */
+function packChannelsHWC(ch0, ch1, ch2, h, w) {
+  const n = h * w;
+  const out = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    out[i * 3] = ch0[i];
+    out[i * 3 + 1] = ch1[i];
+    out[i * 3 + 2] = ch2[i];
+  }
+  return { data: out, shape: [h, w, 3] };
+}
+
+/** 通道类型: mag 可用 dB；signed/phase 强制 linear */
+function channelTransformMode(chKind, globalMode) {
+  if (chKind === "mag") return globalMode;
+  return "linear";
+}
+
 function getPercentiles() {
   let pLo = parseFloat($("pLo").value);
   let pHi = parseFloat($("pHi").value);
@@ -280,6 +316,7 @@ async function openFile() {
     }
 
     $("timesViewField").style.display = kind === "times" ? "block" : "none";
+    $("stftViewField").style.display = kind === "stft" ? "block" : "none";
     // 通道面板在 loadSample 后根据 n_channels 显示
     $("persChannelField").style.display = "none";
     state.nChannels = 1;
@@ -357,25 +394,185 @@ function resolveHeatmapPlane() {
   /** 返回 { flat, h, w, chLabel } 用于单通道热图或 RGB 源 */
   const kind = state.kind;
   const sample = state.sample;
-  const axes = sample.axes || {};
 
   if (kind === "persistence" && sample.channels && sample.nChannels > 1) {
     const mode = getPersChannelMode();
     const { data, shape } = sample.channels;
     const [h, w, c] = shape;
     if (mode === "rgb") {
-      return { mode: "rgb", flat: data, shape, h, w, c, chLabel: "RGB" };
+      return {
+        mode: "rgb",
+        flat: data,
+        shape,
+        h,
+        w,
+        c,
+        chLabel: "RGB",
+        chKinds: ["mag", "mag", "mag"],
+      };
     }
     const ch = parseInt(mode, 10) || 0;
     const flat = extractChannel(data, shape, ch);
     const bins = state.channelBins;
     const binTxt = bins && bins[ch] != null ? `bins=${bins[ch]}` : `ch${ch + 1}`;
-    return { mode: "single", flat, h, w, chLabel: `ch${ch + 1} (${binTxt})` };
+    return {
+      mode: "single",
+      flat,
+      h,
+      w,
+      chLabel: `ch${ch + 1} (${binTxt})`,
+      chKind: "mag",
+    };
+  }
+
+  // ---- STFT: 模值 / I/Q / 相位 及三通道组合 ----
+  if (kind === "stft") {
+    const view = getStftView();
+    const mag = sample.mag;
+    const [h, w] = mag.shape;
+    const realData = sample.real ? sample.real.data : null;
+    const imagData = sample.imag ? sample.imag.data : null;
+    const hasIQ = realData && imagData;
+
+    if (view === "mag") {
+      return {
+        mode: "single",
+        flat: mag.data,
+        h,
+        w,
+        chLabel: "|S|",
+        chKind: "mag",
+      };
+    }
+    if (view === "real") {
+      if (!hasIQ) {
+        return {
+          mode: "single",
+          flat: mag.data,
+          h,
+          w,
+          chLabel: "real (无 I/Q，回退|S|)",
+          chKind: "mag",
+        };
+      }
+      return {
+        mode: "single",
+        flat: realData,
+        h,
+        w,
+        chLabel: "Re(S)",
+        chKind: "signed",
+      };
+    }
+    if (view === "imag") {
+      if (!hasIQ) {
+        return {
+          mode: "single",
+          flat: mag.data,
+          h,
+          w,
+          chLabel: "imag (无 I/Q，回退|S|)",
+          chKind: "mag",
+        };
+      }
+      return {
+        mode: "single",
+        flat: imagData,
+        h,
+        w,
+        chLabel: "Im(S)",
+        chKind: "signed",
+      };
+    }
+    if (view === "phase") {
+      if (!hasIQ) {
+        return {
+          mode: "single",
+          flat: mag.data,
+          h,
+          w,
+          chLabel: "phase (无 I/Q，回退|S|)",
+          chKind: "mag",
+        };
+      }
+      return {
+        mode: "single",
+        flat: computePhase(realData, imagData),
+        h,
+        w,
+        chLabel: "∠S (rad)",
+        chKind: "phase",
+      };
+    }
+    // 三通道 RGB
+    if (!hasIQ) {
+      // 无 I/Q 时退回 mag×3
+      const packed = packChannelsHWC(mag.data, mag.data, mag.data, h, w);
+      return {
+        mode: "rgb",
+        flat: packed.data,
+        shape: packed.shape,
+        h,
+        w,
+        c: 3,
+        chLabel: "RGB 模值×3 (无 I/Q)",
+        chKinds: ["mag", "mag", "mag"],
+      };
+    }
+    if (view === "magx3") {
+      const packed = packChannelsHWC(mag.data, mag.data, mag.data, h, w);
+      return {
+        mode: "rgb",
+        flat: packed.data,
+        shape: packed.shape,
+        h,
+        w,
+        c: 3,
+        chLabel: "RGB [mag,mag,mag]",
+        chKinds: ["mag", "mag", "mag"],
+      };
+    }
+    if (view === "mag_ri") {
+      const packed = packChannelsHWC(mag.data, realData, imagData, h, w);
+      return {
+        mode: "rgb",
+        flat: packed.data,
+        shape: packed.shape,
+        h,
+        w,
+        c: 3,
+        chLabel: "RGB [|S|, Re, Im]",
+        chKinds: ["mag", "signed", "signed"],
+      };
+    }
+    if (view === "phase_ri") {
+      const phase = computePhase(realData, imagData);
+      const packed = packChannelsHWC(phase, realData, imagData, h, w);
+      return {
+        mode: "rgb",
+        flat: packed.data,
+        shape: packed.shape,
+        h,
+        w,
+        c: 3,
+        chLabel: "RGB [∠S, Re, Im]",
+        chKinds: ["phase", "signed", "signed"],
+      };
+    }
+    // 未知 view 回退
+    return {
+      mode: "single",
+      flat: mag.data,
+      h,
+      w,
+      chLabel: "|S|",
+      chKind: "mag",
+    };
   }
 
   const { mag } = sample;
   const [h, w] = mag.shape;
-  return { mode: "single", flat: mag.data, h, w, chLabel: "" };
+  return { mode: "single", flat: mag.data, h, w, chLabel: "", chKind: "mag" };
 }
 
 function renderHeatmap(cmap) {
@@ -418,15 +615,18 @@ function renderHeatmap(cmap) {
     const { flat, shape } = plane;
     const [, , c] = shape;
     const nCh = Math.min(3, c);
-    // 每通道独立百分位归一化到 0..255
+    const chKinds = plane.chKinds || ["mag", "mag", "mag"];
+    // 每通道独立归一化到 0..255；signed/phase 强制 linear
     const rgb = new Array(h);
     const { pLo, pHi } = getPercentiles();
     const chRanges = [];
     for (let ch = 0; ch < nCh; ch++) {
       const chFlat = extractChannel(flat, shape, ch);
-      const transformed = applyMagnitudeTransform(chFlat, mode);
+      const chMode = channelTransformMode(chKinds[ch] || "mag", mode);
+      const transformed = applyMagnitudeTransform(chFlat, chMode);
       let lo, hi;
-      if ($("fixAbs").checked) {
+      if ($("fixAbs").checked && ch === 0) {
+        // 绝对范围仅绑定 ch0（模值/相位），其余通道仍用百分位
         lo = parseFloat($("absLo").value);
         hi = parseFloat($("absHi").value);
         if (Number.isNaN(lo) || Number.isNaN(hi) || lo >= hi) {
@@ -438,9 +638,8 @@ function renderHeatmap(cmap) {
         hi = percentileApprox(transformed, pHi);
         if (hi <= lo) hi = lo + 1e-6;
       }
-      chRanges.push({ lo, hi, transformed });
+      chRanges.push({ lo, hi, transformed, chMode });
     }
-    // 用 ch0 范围写入 range 显示
     state.lastLo = chRanges[0].lo;
     state.lastHi = chRanges[0].hi;
     $("rangeText").textContent = chRanges
@@ -469,7 +668,6 @@ function renderHeatmap(cmap) {
         hovertemplate: "x=%{x}<br>y=%{y}<extra></extra>",
       },
     ];
-    // image 用像素坐标; 若有物理轴则叠加 layout 标题说明
     const titleExtra = plane.chLabel ? ` · ${plane.chLabel}` : "";
     const layout = {
       title: {
@@ -490,7 +688,7 @@ function renderHeatmap(cmap) {
         title: yTitle + (y ? "" : " (pixel)"),
         color: "#8b9bb4",
         gridcolor: "#243044",
-        autorange: "reversed", // image 默认顶行=0
+        autorange: "reversed",
       },
       font: { color: "#e7ecf3" },
     };
@@ -500,7 +698,9 @@ function renderHeatmap(cmap) {
 
   // ---- 单通道热图 ----
   const flat = plane.flat;
-  const transformed = applyMagnitudeTransform(flat, mode);
+  const chKind = plane.chKind || "mag";
+  const singleMode = channelTransformMode(chKind, mode);
+  const transformed = applyMagnitudeTransform(flat, singleMode);
   const { lo, hi } = computeRange(transformed);
   state.lastLo = lo;
   state.lastHi = hi;
@@ -508,6 +708,10 @@ function renderHeatmap(cmap) {
 
   const z = reshape2d(transformed, [h, w]);
   const titleExtra = plane.chLabel ? ` · ${plane.chLabel}` : "";
+  let cbarTitle = "mag";
+  if (chKind === "phase") cbarTitle = "rad";
+  else if (chKind === "signed") cbarTitle = "I/Q";
+  else if (singleMode === "dB") cbarTitle = "dB";
 
   const data = [
     {
@@ -519,7 +723,7 @@ function renderHeatmap(cmap) {
       zmin: lo,
       zmax: hi,
       colorbar: {
-        title: { text: mode === "dB" ? "dB" : "mag", side: "right" },
+        title: { text: cbarTitle, side: "right" },
         thickness: 14,
       },
       hovertemplate: "x=%{x}<br>y=%{y}<br>z=%{z:.3f}<extra></extra>",
@@ -696,6 +900,9 @@ function bindEvents() {
     el.addEventListener("change", renderPlot);
   });
   document.querySelectorAll('input[name="timesView"]').forEach((el) => {
+    el.addEventListener("change", renderPlot);
+  });
+  document.querySelectorAll('input[name="stftView"]').forEach((el) => {
     el.addEventListener("change", renderPlot);
   });
   document.querySelectorAll('input[name="persChannel"]').forEach((el) => {

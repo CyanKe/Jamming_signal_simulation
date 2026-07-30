@@ -30,12 +30,28 @@ uvicorn server:app --host 127.0.0.1 --port 8765
 | 样本 | 滑条 / ← → 键切换；显示 metadata 标签与 jam_params |
 | 归一化 | dB (`20*log10`) / linear；百分位 lo/hi；固定绝对范围跨样本对比 |
 | Colormap | Jet / Hot / Turbo / Viridis / Gray 等（Plotly） |
+| STFT 可视化 | 单通道：模值 / 实部 / 虚部 / 相位；三通道 RGB：`[mag×3]` / `[|S|,Re,Im]` / `[∠S,Re,Im]` |
+| Persistence | 多通道时：ch0–ch2 热图 + 三通道 RGB |
+
+### STFT 通道模式
+
+后端对复数 STFT 返回 `mag` / `real` / `imag`。前端可切换：
+
+| 模式 | 含义 |
+|------|------|
+| 模值 \|S\| | 单通道热图（默认，对齐 colormap 管线） |
+| 实部 / 虚部 / 相位 | 单通道热图；I/Q 与相位强制 linear（不用 dB） |
+| RGB 模值×3 | 三通道同为 \|S\|，对齐 RadarCLIP `stft_to_tensor` 的 mag×3 |
+| RGB [模,实,虚] | R=\|S\|，G=Re，B=Im；模值通道可用 dB，I/Q 线性 |
+| RGB [相,实,虚] | R=∠S，G=Re，B=Im；均为 linear |
 
 归一化逻辑对齐 MATLAB `utils/apply_colormap_to_stft.m`：
 
 ```
 mag → (dB 或 linear) → (mag - lo) / (hi - lo) clip 到 [0,1] → colormap
 ```
+
+静态资源有缓存时请 **Ctrl+F5** 强制刷新。
 
 ## API
 

@@ -134,6 +134,19 @@
             <label><input type="radio" name="timesView" value="both" /> real+imag</label>
           </div>
         </div>
+        <div class="field" id="stftViewField" style="display:none">
+          <label>STFT 可视化</label>
+          <div class="radio-group" id="stftViewRadios">
+            <label><input type="radio" name="stftView" value="mag" checked /> 模值 |S|</label>
+            <label><input type="radio" name="stftView" value="real" /> 实部</label>
+            <label><input type="radio" name="stftView" value="imag" /> 虚部</label>
+            <label><input type="radio" name="stftView" value="phase" /> 相位</label>
+            <label><input type="radio" name="stftView" value="magx3" /> RGB 模值×3</label>
+            <label><input type="radio" name="stftView" value="mag_ri" /> RGB [模,实,虚]</label>
+            <label><input type="radio" name="stftView" value="phase_ri" /> RGB [相,实,虚]</label>
+          </div>
+          <div id="stftViewHint" class="hint">单通道热图 / 三通道 RGB（对齐训练 mag×3 与 I/Q 组合）</div>
+        </div>
         <div class="field" id="persChannelField" style="display:none">
           <label>Persistence 通道</label>
           <div class="radio-group" id="persChannelRadios">

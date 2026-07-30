@@ -138,6 +138,16 @@ def _format_label(item: Optional[Dict[str, Any]]) -> str:
     jt = item.get("jam_types", "?")
     if isinstance(jt, list):
         jt = "+".join(str(x) for x in jt)
+
+    # 纯LFM信号: 使用 SNR 替代 JNR
+    if jt == "clean":
+        snr = item.get("SNR", "?")
+        try:
+            snr_s = f"{int(snr):+d}dB"
+        except (TypeError, ValueError):
+            snr_s = f"{snr}dB"
+        return f"Clean LFM  |  SNR={snr_s}"
+
     jnr = item.get("JNR", "?")
     try:
         jnr_s = f"{int(jnr):+d}dB"
@@ -306,12 +316,12 @@ def scan_datasets() -> List[Dict[str, Any]]:
         return []
 
     results: List[Dict[str, Any]] = []
-    # 结构: output/{dataset}/JNR_+N/{split}_echo_*.mat
+    # 结构: output/{dataset}/JNR_+N/{split}_echo_*.mat  或  output/{dataset}/SNR_+N/...
     for ds_dir in sorted(OUTPUT_ROOT.iterdir()):
         if not ds_dir.is_dir() or ds_dir.name.startswith("."):
             continue
         jnr_dirs = sorted(
-            [d for d in ds_dir.iterdir() if d.is_dir() and d.name.startswith("JNR_")]
+            [d for d in ds_dir.iterdir() if d.is_dir() and (d.name.startswith("JNR_") or d.name.startswith("SNR_"))]
         )
         if not jnr_dirs:
             # 直接在 dataset 下找 mat

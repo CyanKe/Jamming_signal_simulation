@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""Scan STFT power(dB) across all JNR folders to recommend a global power axis."""
+"""Scan STFT power(dB) across all JNR/SNR folders to recommend a global power axis."""
 
 from __future__ import annotations
 
@@ -20,12 +20,13 @@ def find_stft_tasks(root: Path):
     tasks = []
     for stft in root.rglob("*_echo_stfts.mat"):
         parent = stft.parent.name
-        m = re.search(r"JNR_([+-]?\d+)", parent)
+        m = re.search(r"(JNR|SNR)_([+-]?\d+)", parent)
         if not m:
             continue
-        jnr = int(m.group(1))
+        jnr = int(m.group(2))
+        kind = m.group(1)  # "JNR" or "SNR"
         dataset = stft.parent.parent.name
-        tasks.append((jnr, dataset, stft))
+        tasks.append((jnr, kind, dataset, stft))
     return sorted(tasks, key=lambda x: (x[0], x[1], str(x[2])))
 
 
@@ -80,15 +81,15 @@ def main():
     print(f"ROOT = {ROOT}")
     print(f"Total STFT files: {len(tasks)}")
     print("JNR set:", sorted({t[0] for t in tasks}))
-    print("Datasets:", sorted({t[1] for t in tasks}))
+    print("Datasets:", sorted({t[2] for t in tasks}))
     print()
 
     by_jnr = defaultdict(list)
     rows = []
 
-    for jnr, ds, path in tasks:
+    for jnr, kind, ds, path in tasks:
         rel = path.relative_to(ROOT).as_posix()
-        print(f"  scanning JNR={jnr:+d} {rel} ...", flush=True)
+        print(f"  scanning {kind}={jnr:+d} {rel} ...", flush=True)
         try:
             st = read_power_db_stats(path)
         except Exception as e:

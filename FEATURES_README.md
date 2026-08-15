@@ -263,6 +263,11 @@ for epoch in range(50):
 | `utils/visualize_features_json.m` | 特征可视化 |
 | `load_features.py` | Python/PyTorch加载 |
 | `main/main_generation_v2.m` | 主生成程序（已集成特征提取） |
+| `extract_fast44.py` | **44 维快集**（22∪TAGPNet30，无双谱） |
+| `eval_fast44.py` | 44 维线性 / RF / MLP / 质心评测 |
+| [`docs/FAST44.md`](docs/FAST44.md) | 提取、字段、评测协议与 2D_8x9_0520 结论 |
+
+旧 22 维走 MATLAB → JSON → `load_features.py`。新实验优先 44 维快集（Python，复用已有 times/STFT，约 7 分钟出 `2D_8x9_0520` 全部分割）。
 
 ---
 

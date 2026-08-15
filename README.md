@@ -42,7 +42,10 @@
 
 ```text
 ├── config.m / config_example.m     # 配置文件(使用config.m)
-├── load_features.py                # PyTorch 特征加载桥接脚本
+├── load_features.py                # PyTorch 22 维特征加载桥接
+├── extract_fast44.py               # 44 维快集提取 (times + STFT)
+├── eval_fast44.py                  # 44 维小模型可分性评测
+├── docs/FAST44.md                  # 44 维使用说明与运行结论
 ├── umap_stft.py                    # UMAP 可视化脚本
 ├── generators/                     # 信号生成器
 │   ├── base/                       # 基础信号
@@ -88,6 +91,8 @@
 │   ├── DiffSTFT_Advanced.m         # 高级差分 STFT
 │   ├── demo_DiffSTFT.m             # DiffSTFT 演示
 │   ├── choiwilliams.m              # Choi-Williams 分布实现
+│   ├── convert_times_to_tfr.m      # 后处理 WVD/PWVD/SPWVD/CWD (每类1样本, 256→224)
+│   ├── benchmark_wvd_cost.m        # WVD 族开销实测
 │   ├── convertLabelsToOneHot.m     # 标签独热编码
 │   ├── gen_modulation_phase.m      # 调制相位生成
 │   ├── gen_square_wave.m           # 方波生成

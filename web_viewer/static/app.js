@@ -308,10 +308,11 @@ async function openFile() {
       `shape ${JSON.stringify(info.shape)} · ${info.size_mb} MB · dtype ${info.dtype}` +
       (info.has_metadata ? ` · metadata ${info.metadata_count}` : " · 无 metadata");
 
-    // persistence 默认 linear 更合理
+    // persistence 默认 linear; WVD 族有负值已取 abs, 默认 dB 更清晰
+    const tfrKinds = ["wvd", "pwvd", "spwvd", "cwd"];
     if (kind === "persistence") {
       document.querySelector('input[name="normMode"][value="linear"]').checked = true;
-    } else if (kind === "stft") {
+    } else if (kind === "stft" || tfrKinds.includes(kind)) {
       document.querySelector('input[name="normMode"][value="dB"]').checked = true;
     }
 
@@ -590,7 +591,7 @@ function renderHeatmap(cmap) {
   const h = plane.h;
   const w = plane.w;
 
-  if (kind === "stft") {
+  if (kind === "stft" || kind === "wvd" || kind === "pwvd" || kind === "spwvd" || kind === "cwd") {
     if (axes.T && axes.T.length === w) {
       x = axes.T.map((t) => t * 1e6);
       xTitle = "Time (µs)";

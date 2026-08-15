@@ -33,12 +33,21 @@ KIND_VARS = {
     "stft": "all_stfts",
     "times": "all_times",
     "persistence": "all_persistences",
+    # WVD 族 / CWD (实数 2D, 后处理 convert_times_to_tfr)
+    "wvd": "all_wvds",
+    "pwvd": "all_pwvds",
+    "spwvd": "all_spwvds",
+    "cwd": "all_cwds",
 }
 
 KIND_SUFFIX = {
     "stft": "_echo_stfts.mat",
     "times": "_echo_times.mat",
     "persistence": "_echo_persistences.mat",
+    "wvd": "_echo_wvds.mat",
+    "pwvd": "_echo_pwvds.mat",
+    "spwvd": "_echo_spwvds.mat",
+    "cwd": "_echo_cwds.mat",
 }
 
 app = FastAPI(title="Jamming Signal Viewer", version="1.0.0")
@@ -110,6 +119,21 @@ def _load_axes(f: h5py.File) -> Dict[str, Any]:
 
 def _metadata_path_for_mat(mat_path: Path) -> Optional[Path]:
     name = mat_path.name
+    # TFR 子集: 优先 *_echo_tfr_metadata.json (与 convert_times_to_tfr 输出对齐)
+    tfr_suffixes = (
+        "_echo_wvds.mat",
+        "_echo_pwvds.mat",
+        "_echo_spwvds.mat",
+        "_echo_cwds.mat",
+    )
+    for suf in tfr_suffixes:
+        if name.endswith(suf):
+            split_prefix = name[: -len(suf)]
+            tfr_meta = mat_path.parent / f"{split_prefix}_echo_tfr_metadata.json"
+            if tfr_meta.exists():
+                return tfr_meta
+            break
+
     for kind, suffix in KIND_SUFFIX.items():
         if name.endswith(suffix):
             split_prefix = name[: -len(suffix)]  # e.g. "test"
@@ -117,6 +141,8 @@ def _metadata_path_for_mat(mat_path: Path) -> Optional[Path]:
             if meta.exists():
                 return meta
     # fallback: same stem family
+    for m in mat_path.parent.glob("*_echo_tfr_metadata.json"):
+        return m
     for m in mat_path.parent.glob("*_echo_metadata.json"):
         return m
     return None
@@ -263,6 +289,31 @@ def _read_sample(mat_path: Path, kind: str, index: int) -> Dict[str, Any]:
                 out["channels"] = _encode_f32(channels)
             return out
 
+        # WVD / PWVD / SPWVD / CWD: 实数 [H,W], 可含负值 → 返回 abs 作为 mag
+        if kind in ("wvd", "pwvd", "spwvd", "cwd"):
+            arr = sample.astype(np.float32)
+            if _is_complex_dtype(sample.dtype):
+                real = sample["real"].astype(np.float32)
+                imag = sample["imag"].astype(np.float32)
+                arr = np.sqrt(real.astype(np.float64) ** 2 + imag.astype(np.float64) ** 2).astype(
+                    np.float32
+                )
+            # MATLAB [N,H,W] → HDF5 切片 [W,H] → 转置为 [H,W]
+            if arr.ndim == 2:
+                arr = arr.T
+            elif arr.ndim != 2:
+                raise HTTPException(400, f"不支持的 {kind} 维度: {arr.shape}")
+            mag = np.abs(arr)
+            return {
+                "kind": kind,
+                "index": index,
+                "n_samples": n,
+                "mag": _encode_f32(mag),
+                "raw": _encode_f32(arr),  # 保留符号, 可选
+                "n_channels": 1,
+                "axes": axes,
+            }
+
     raise HTTPException(400, f"未知 kind: {kind}")
 
 
@@ -376,7 +427,9 @@ def api_datasets():
 @app.get("/api/open")
 def api_open(
     path: str = Query(..., description="相对 output/ 的 .mat 路径"),
-    kind: str = Query(..., description="stft | times | persistence"),
+    kind: str = Query(
+        ..., description="stft | times | persistence | wvd | pwvd | spwvd | cwd"
+    ),
 ):
     kind = kind.lower()
     if kind not in KIND_VARS:

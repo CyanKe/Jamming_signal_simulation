@@ -1,0 +1,180 @@
+{
+  "mean": {
+    "proto": 0.6687058823529411,
+    "lda": 0.8504705882352941,
+    "deep_single_top1": 0.4917647058823529
+  },
+  "rows": [
+    {
+      "held_out": "DFTJ",
+      "group": "D",
+      "n_test": 500,
+      "proto_acc": 0.69,
+      "proto_collapse": "DFTJ",
+      "lda_acc": 0.974,
+      "lda_collapse": "DFTJ",
+      "deep_single_top1": 0.8
+    },
+    {
+      "held_out": "SMSPJ",
+      "group": "D",
+      "n_test": 500,
+      "proto_acc": 0.398,
+      "proto_collapse": "SMSPJ",
+      "lda_acc": 0.776,
+      "lda_collapse": "SMSPJ",
+      "deep_single_top1": 0.86
+    },
+    {
+      "held_out": "CSJ",
+      "group": "D",
+      "n_test": 500,
+      "proto_acc": 0.56,
+      "proto_collapse": "CSJ",
+      "lda_acc": 0.652,
+      "lda_collapse": "CSJ",
+      "deep_single_top1": 0.94
+    },
+    {
+      "held_out": "ISCJ",
+      "group": "D",
+      "n_test": 500,
+      "proto_acc": 0.612,
+      "proto_collapse": "ISCJ",
+      "lda_acc": 0.886,
+      "lda_collapse": "ISCJ",
+      "deep_single_top1": 0.92
+    },
+    {
+      "held_out": "ISRJ",
+      "group": "D",
+      "n_test": 500,
+      "proto_acc": 0.38,
+      "proto_collapse": "ISRJ",
+      "lda_acc": 0.728,
+      "lda_collapse": "ISRJ",
+      "deep_single_top1": 0.0
+    },
+    {
+      "held_out": "MISRJ",
+      "group": "D",
+      "n_test": 500,
+      "proto_acc": 0.586,
+      "proto_collapse": "MISRJ",
+      "lda_acc": 0.904,
+      "lda_collapse": "MISRJ",
+      "deep_single_top1": 0.82
+    },
+    {
+      "held_out": "ISDJ",
+      "group": "D",
+      "n_test": 500,
+      "proto_acc": 0.516,
+      "proto_collapse": "ISDJ",
+      "lda_acc": 0.698,
+      "lda_collapse": "ISDJ",
+      "deep_single_top1": 0.16
+    },
+    {
+      "held_out": "C&IJ",
+      "group": "D",
+      "n_test": 500,
+      "proto_acc": 0.306,
+      "proto_collapse": "C&IJ",
+      "lda_acc": 0.784,
+      "lda_collapse": "C&IJ",
+      "deep_single_top1": 0.0
+    },
+    {
+      "held_out": "AJ",
+      "group": "S",
+      "n_test": 500,
+      "proto_acc": 0.8,
+      "proto_collapse": "AJ",
+      "lda_acc": 0.976,
+      "lda_collapse": "AJ",
+      "deep_single_top1": 0.77
+    },
+    {
+      "held_out": "BJ",
+      "group": "S",
+      "n_test": 500,
+      "proto_acc": 1.0,
+      "proto_collapse": "BJ",
+      "lda_acc": 1.0,
+      "lda_collapse": "BJ",
+      "deep_single_top1": 0.16
+    },
+    {
+      "held_out": "SJ",
+      "group": "S",
+      "n_test": 500,
+      "proto_acc": 1.0,
+      "proto_collapse": "SJ",
+      "lda_acc": 0.738,
+      "lda_collapse": "SJ",
+      "deep_single_top1": 0.0
+    },
+    {
+      "held_out": "NAMJ",
+      "group": "S",
+      "n_test": 500,
+      "proto_acc": 0.882,
+      "proto_collapse": "NAMJ",
+      "lda_acc": 0.886,
+      "lda_collapse": "NAMJ",
+      "deep_single_top1": 0.0
+    },
+    {
+      "held_out": "NPMJ",
+      "group": "S",
+      "n_test": 500,
+      "proto_acc": 0.792,
+      "proto_collapse": "NPMJ",
+      "lda_acc": 0.838,
+      "lda_collapse": "NPMJ",
+      "deep_single_top1": 0.05
+    },
+    {
+      "held_out": "NFMJ",
+      "group": "S",
+      "n_test": 500,
+      "proto_acc": 0.606,
+      "proto_collapse": "NFMJ",
+      "lda_acc": 0.782,
+      "lda_collapse": "NFMJ",
+      "deep_single_top1": 0.98
+    },
+    {
+      "held_out": "PJ",
+      "group": "S",
+      "n_test": 500,
+      "proto_acc": 1.0,
+      "proto_collapse": "PJ",
+      "lda_acc": 1.0,
+      "lda_collapse": "PJ",
+      "deep_single_top1": 1.0
+    },
+    {
+      "held_out": "NCJ",
+      "group": "S",
+      "n_test": 500,
+      "proto_acc": 0.396,
+      "proto_collapse": "NCJ",
+      "lda_acc": 0.968,
+      "lda_collapse": "NCJ",
+      "deep_single_top1": 0.9
+    },
+    {
+      "held_out": "NPJ",
+      "group": "S",
+      "n_test": 500,
+      "proto_acc": 0.844,
+      "proto_collapse": "NPJ",
+      "lda_acc": 0.868,
+      "lda_collapse": "NPJ",
+      "deep_single_top1": 0.0
+    }
+  ],
+  "note": "proto = class-mean prototype (raw attr space); LDA = projection fit on 16 seen classes + prototype; deep_single_top1 = RadarDINO LOO single-confusion diagonal."
+}

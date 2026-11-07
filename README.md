@@ -31,6 +31,19 @@
 | 噪声调幅干扰 | NAMJ | 噪声调制幅度 |
 | 脉冲干扰 | PJ | 脉冲式干扰 |
 
+### 存储-转发选项（NCJ / NPJ）
+
+NCJ、NPJ 支持显式的脉间更新周期 U，用于区分「每脉冲重新产生噪声」与
+「整帧复用同一段存储波形」：
+
+```matlab
+cfg.signal.Np    = 16;   % 需要 > 1 才生效
+cfg.jamming.ncj.U = 16;  % 16 = 整帧同一波形; 1 = 每脉冲新噪声
+cfg.jamming.npj.U = 16;
+```
+
+不设置时行为与既有数据完全一致。详见 [docs/NCJ_NPJ_store_and_forward.md](docs/NCJ_NPJ_store_and_forward.md)。
+
 ## 混合干扰
 
 支持多种干扰类型组合，如：
@@ -42,7 +55,10 @@
 
 ```text
 ├── config.m / config_example.m     # 配置文件(使用config.m)
-├── load_features.py                # PyTorch 特征加载桥接脚本
+├── load_features.py                # PyTorch 22 维特征加载桥接
+├── extract_fast44.py               # 44 维快集提取 (times + STFT)
+├── eval_fast44.py                  # 44 维小模型可分性评测
+├── docs/FAST44.md                  # 44 维使用说明与运行结论
 ├── umap_stft.py                    # UMAP 可视化脚本
 ├── generators/                     # 信号生成器
 │   ├── base/                       # 基础信号
@@ -88,6 +104,8 @@
 │   ├── DiffSTFT_Advanced.m         # 高级差分 STFT
 │   ├── demo_DiffSTFT.m             # DiffSTFT 演示
 │   ├── choiwilliams.m              # Choi-Williams 分布实现
+│   ├── convert_times_to_tfr.m      # 后处理 WVD/PWVD/SPWVD/CWD (每类1样本, 256→224)
+│   ├── benchmark_wvd_cost.m        # WVD 族开销实测
 │   ├── convertLabelsToOneHot.m     # 标签独热编码
 │   ├── gen_modulation_phase.m      # 调制相位生成
 │   ├── gen_square_wave.m           # 方波生成
@@ -119,13 +137,49 @@ run('main/main_generation_v2.m');  % 执行生成
 - 干噪比 (JNR)
 - 干扰带宽等特定参数
 
+### 纯LFM信号（无干扰）
+
+如需生成纯LFM信号（仅回波+噪声，无干扰），在 `config.m` 中设置：
+
+```matlab
+cfg.clean_lfm.enabled = true;          % 启用纯LFM生成
+cfg.clean_lfm.SNR_values = -10:5:10;   % SNR 扫描范围 (dB)
+cfg.clean_lfm.SAMPLE_NUM = 200;        % 每个 SNR 值的样本数
+```
+
+纯LFM信号保存到 `SNR_<value>/` 子目录（与 `JNR_<value>/` 并列），文件格式与干扰信号一致，可配置的参数包括：
+
+| 参数 | 默认值 | 说明 |
+| :--- | :--- | :--- |
+| `cfg.clean_lfm.enabled` | `false` | 是否启用纯LFM生成 |
+| `cfg.clean_lfm.SNR_values` | `-10:5:10` | SNR 扫描值 (dB)，可为标量或向量 |
+| `cfg.clean_lfm.SAMPLE_NUM` | `100` | 每个 SNR 值的样本数 |
+
 ---
 
 ## 数据集格式说明
 
 ### 输出文件
 
-每个 JNR 目录下生成以下文件：
+数据按 SNR/JNR 分目录存储：
+
+```text
+output/<dirname>/
+├── JNR_+0/              # 干扰信号（按干噪比分目录）
+│   ├── test_echo_times.mat
+│   ├── test_echo_stfts.mat
+│   └── ...
+├── JNR_+5/
+│   └── ...
+├── SNR_-10/             # 纯LFM信号（按信噪比分目录，可选）
+│   ├── test_echo_times.mat
+│   ├── test_echo_stfts.mat
+│   └── ...
+└── SNR_+0/
+    └── ...
+```
+
+每个 JNR/SNR 目录下生成以下文件：
 
 | 文件名 | 格式 | 说明 |
 | :--- | :--- | :--- |
@@ -160,16 +214,47 @@ run('main/main_generation_v2.m');  % 执行生成
 时间轴: T (s)
 ```
 
-#### `all_persistences` — 持续时间谱
+#### `all_persistences` — 持续时间谱 (Persistence Spectrum)
+
+由 STFT 功率 (dB) 在频率 × 功率 二维上做直方图得到。默认 `method='custom'`：每频率行归一化为概率（行和为 1）；功率轴由 `power_range_mode` 决定（推荐 `fixed` + `[0, 70]` dB，便于跨 JNR 训练）。
+
+**多通道（当前默认，适合 CNN/ViT）**
 
 ```text
 变量名: all_persistences
 类型:   single
-形状:   [SAMPLE_NUM × Nfft × num_power_bins]
-说明:   功率维度直方图, num_power_bins=64
+形状:   [SAMPLE_NUM × H × W × C]   典型 [N × 224 × 224 × 3]
+说明:   C 个功率分箱尺度各自做 persistence，再统一 resize 到 target_size
+通道:   channel_power_bins = [224, 112, 32]
+        ch1: 原生 224×224；ch2: 224×112 → 上采样；ch3: 224×32 → 上采样
+配置:   cfg.persistence.channel_power_bins / target_size
+功率轴: power_centers (dB)，长度 = W（与输出功率维对齐，跨度 = power_range_db）
+频率轴: F (Hz)，长度 = Nfft（显示时若 H=Nfft 可直接对应）
+同文件: channel_power_bins, target_size, num_power_bins (=max bins),
+        power_range_mode, power_range_db, persistence_method, F
+```
+
+训练时单样本即为 `224×224×3`；PyTorch 常用 `permute` 成 `(C, H, W)`。
+
+**单通道（兼容旧数据 / 关闭多尺度）**
+
+```text
+变量名: all_persistences
+类型:   single
+形状:   [SAMPLE_NUM × Nfft × num_power_bins]   如 [N × 224 × 224]
+说明:   单尺度功率直方图；channel_power_bins=[] 或标量时输出此格式
+配置:   cfg.persistence.num_power_bins（默认 224）
 功率轴: power_centers (dB)
 频率轴: F (Hz)
 ```
+
+| 配置项 | 含义 |
+| :--- | :--- |
+| `channel_power_bins` | 向量 → 多通道；`[]` / 标量 → 单通道 |
+| `target_size` | 多通道输出 `[H, W]`，默认 `[224, 224]` |
+| `power_range_mode` | `fixed` 全库统一功率轴；`auto` 按目录样本估算 |
+| `power_range_db` | `fixed` 时的 `[lo, hi]` dB（建议 JNR 0–20 用 `[0, 70]`） |
+| `method` | `custom` 行概率；`matlab` 对齐 pspectrum 百分比 |
 
 #### `all_metadata` — 样本元数据
 
@@ -179,7 +264,12 @@ run('main/main_generation_v2.m');  % 执行生成
     "sample_idx": 1,
     "jam_types": ["DFTJ"],
     "JNR": 10,
+    "SNR": -5,
     "pos": 1234,
+    "B": 12500000,
+    "taup": 2.3e-05,
+    "mu": 5.43e11,
+    "sweep_dir": 1,
     "jam_params": {
       "dftj_k": 5
     }
@@ -190,10 +280,15 @@ run('main/main_generation_v2.m');  % 执行生成
 | 字段 | 类型 | 说明 |
 | :--- | :--- | :--- |
 | `sample_idx` | int | 样本序号 (1-based) |
-| `jam_types` | string[] | 干扰类型缩写数组, 单一干扰如 `["DFTJ"]`, 混合干扰如 `["DFTJ","AJ"]` |
-| `JNR` | float | 干噪比 (dB) |
+| `jam_types` | string[] | 干扰类型缩写数组，单一干扰如 `["DFTJ"]`，混合干扰如 `["DFTJ","AJ"]`，纯LFM为 `"clean"` |
+| `JNR` | float | 干噪比 (dB)，纯LFM时为 `NaN` |
+| `SNR` | float | 信噪比 (dB)，仅纯LFM样本含此字段 |
 | `pos` | int | 目标在 PRI 中的起始采样位置 |
-| `jam_params` | object | 该样本的干扰生成参数 (因类型而异) |
+| `B` | float | LFM 带宽 (Hz) |
+| `taup` | float | LFM 脉宽 (s) |
+| `mu` | float | LFM 调频斜率 (Hz/s) |
+| `sweep_dir` | int | 扫频方向 (`1`=上扫, `-1`=下扫) |
+| `jam_params` | object | 该样本的干扰生成参数 (因类型而异，纯LFM为空 `{}`) |
 
 #### `all_features` — 多域特征
 
@@ -245,6 +340,8 @@ run('main/main_generation_v2.m');  % 执行生成
 > **注意**: 上述索引基于 `config_example.m` 中 `generation_plan` 的顺序。标签在 metadata 中以**字符串缩写**存储 (`jam_types` 字段), 不使用整数索引。若需整数标签, 可按此表映射, 或从 `generation_plan` 的顺序推导。
 
 **混合干扰标签**格式: `"DFTJ+AJ"` (用 `+` 连接多个缩写, 按字母序排列)。
+
+**纯LFM标签**: `jam_types` 为 `"clean"`，表示无干扰样本。在分类任务中可作为第 18 类（"无干扰"），或用于 SNR 敏感性分析。
 
 ### PyTorch 数据加载
 

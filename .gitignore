@@ -16,3 +16,6 @@ Thumbs.db
 claude.md
 output/
 review.md
+# Python
+__pycache__/
+*.pyc

@@ -55,6 +55,20 @@ function cfg = config()
     cfg.jamming.npmj.Kp = 1.5;               % 调相指数 (rad)，对 unit-rms 调制噪声
     % cfg.jamming.npmj.Kp_range = [1.0, 2.5]; % 可选：样本级随机 Kp（优先于 Kp）
 
+    % ---- NCJ / NPJ 存储-转发（可选，需要 cfg.signal.Np > 1） ----
+    % U = 更新周期，以 PRI 计：
+    %   U = 1    → 每个脉冲重新产生噪声（真实噪声干扰机，无脉间相干）
+    %   U = Np   → 整帧复用同一段存储波形（DRFM 噪声转发机，脉间完全相干）
+    % 1 < U < Np → 每 U 个 PRI 换一次。
+    % 不设置 U（或删掉这两行）时走原生成器，输出与既有数据集完全一致。
+    % 注意：单 PRI（Np=1）时两者等价，本开关不生效。
+    % cfg.signal.Np = 16;
+    % cfg.jamming.ncj.U = 16;
+    % cfg.jamming.npj.U = 16;
+    % 可选：块内每脉冲附加相位漂移（rad），模拟 DRFM 相位漂移，会削弱相干积累
+    % cfg.jamming.ncj.drift_per_pulse = 0;
+    % cfg.jamming.npj.drift_per_pulse = 0;
+
     % NAMJ (噪声调幅干扰)
     cfg.jamming.namj.BJ_range = [15, 25];    % 干扰带宽范围 MHz
     cfg.jamming.namj.random_Fj = true;
@@ -74,6 +88,33 @@ function cfg = config()
     cfg.stft_rgb.colormaps = {'parula', 'jet', 'turbo', 'hot', 'gray'};
     cfg.stft_rgb.normalization = 'dB';               % 'dB'=20*log10 压缩动态范围 | 'linear'=原始幅度
     cfg.stft_rgb.percentile_range = [1, 99];          % 归一化百分位裁剪范围
+
+    % ==================== CWD参数 (可选) ====================
+    cfg.cwd.enabled = false;       % 是否使用CWD
+    cfg.cwd.sigma = 0.5;           % CWD缩放因子
+
+    % ==================== 持续时间谱参数 (Persistence Spectrum) ====================
+    % method:
+    %   'custom'  → 单通道或多通道自定义直方图（默认，推荐）
+    %   'matlab'  → MATLAB 内建持久谱，功率轴逐样本
+    %   'legacy'  → 旧版单通道 64 bin，功率轴由首样本分位数确定
+    %               （用于复现合并前的 64-bin 数据集；忽略下面的多通道参数）
+    cfg.persistence.method = 'custom';
+    cfg.persistence.legacy_num_power_bins = 64;        % 仅 method='legacy' 生效
+    cfg.persistence.num_power_bins = 224;              % 单通道功率分箱 (兼容)
+    cfg.persistence.channel_power_bins = [224, 112, 32]; % 多通道; [] 或标量 = 单通道
+    cfg.persistence.target_size = [224, 224];          % 多通道输出 [freq, power]
+    % custom 功率轴: 'fixed' 全库统一 | 'auto' 每目录按样本1估算
+    cfg.persistence.power_range_mode = 'fixed';  % 'fixed' | 'auto'
+    cfg.persistence.power_range_db = [0, 70];     % fixed: [lo, hi] dB
+    cfg.persistence.power_percentile_lo = 1;     % auto: 下界百分位
+    cfg.persistence.power_margin_db = 3;         % auto: 余量 (两端均 +margin)
+    % ==================== 纯 LFM 对照集 (可选) ====================
+    % 生成无干扰的纯 LFM 样本，用于监督/对齐训练。旧版 config.m 无此字段时
+    % main_generation_v2 会按 enabled = false 处理。
+    cfg.clean_lfm.enabled = false;
+    cfg.clean_lfm.SNR_values = -5:5:20;   % 每个 SNR 生成一批
+    cfg.clean_lfm.SAMPLE_NUM = 50;        % 每个 SNR 的样本数
 
     % ==================== 输出设置 ====================
     cfg.output.dataset_type = 'train';  % 'train', 'val', 'test'

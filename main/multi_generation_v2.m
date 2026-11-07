@@ -65,6 +65,11 @@ for m = 1:data_num
 
     for jam_type = jam_types
         switch jam_type
+            case 'clean'  % 纯LFM信号，不生成干扰
+                % sum_jam 保持为零向量，无需任何操作
+                % 最终 rx = As * tx * random_phase + white_noise
+                pure_jam = zeros(1, N_total);
+
             case 'DFTJ'  % DFTJ - 密集假目标干扰
                 jam_params = params;
                 jam_params.JNR = current_jnr;
@@ -155,12 +160,26 @@ for m = 1:data_num
             case 'NCJ'  % NCJ - 噪声卷积干扰
                 jam_params = params;
                 jam_params.JNR = current_jnr;
-                [pure_jam] = generate_ncj_jamming(tx, jam_params, 1);
+                if sf_enabled(cfg, 'ncj', params)
+                    jam_params = apply_sf(jam_params, cfg.jamming.ncj);
+                    [pure_jam, sf_info] = generate_ncj_sf_jamming(tx, jam_params, 1);
+                    metadata(m).jam_params.ncj_U        = sf_info(1).U;
+                    metadata(m).jam_params.ncj_n_blocks = sf_info(1).n_blocks;
+                else
+                    [pure_jam] = generate_ncj_jamming(tx, jam_params, 1);
+                end
 
             case 'NPJ'  % NPJ - 噪声乘积干扰
                 jam_params = params;
                 jam_params.JNR = current_jnr;
-                [pure_jam] = generate_npj_jamming(tx, jam_params, 1);
+                if sf_enabled(cfg, 'npj', params)
+                    jam_params = apply_sf(jam_params, cfg.jamming.npj);
+                    [pure_jam, sf_info] = generate_npj_sf_jamming(tx, jam_params, 1);
+                    metadata(m).jam_params.npj_U        = sf_info(1).U;
+                    metadata(m).jam_params.npj_n_blocks = sf_info(1).n_blocks;
+                else
+                    [pure_jam] = generate_npj_jamming(tx, jam_params, 1);
+                end
 
             
             case 'NFMJ' % NFMJ - 噪声调频干扰
@@ -256,4 +275,29 @@ for m = 1:data_num
 
     samples(m, :) = rx;
 end
+end
+
+
+% ==========================================================
+% 存储-转发（store-and-forward）辅助
+% ==========================================================
+function tf = sf_enabled(cfg, name, params)
+% 是否启用某类干扰的存储-转发生成器。
+% 条件：配置里显式给了 U，且 Np > 1（单脉冲时存储-转发无意义，走原生成器）。
+    tf = false;
+    if ~isfield(cfg, 'jamming') || ~isfield(cfg.jamming, name)
+        return;
+    end
+    if ~isfield(cfg.jamming.(name), 'U') || isempty(cfg.jamming.(name).U)
+        return;
+    end
+    tf = params.Np > 1;
+end
+
+function p = apply_sf(p, sec)
+% 把配置里的 U / drift_per_pulse 写进 params
+    p.U = sec.U;
+    if isfield(sec, 'drift_per_pulse') && ~isempty(sec.drift_per_pulse)
+        p.drift_per_pulse = sec.drift_per_pulse;
+    end
 end

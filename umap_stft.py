@@ -155,7 +155,12 @@ def list_rgb_colormaps(mat_path):
 
 
 def load_persistence(mat_path):
-    """Load persistence spectrum .mat (real-valued), return (N, freq, power_bins)."""
+    """Load persistence spectrum .mat (real-valued).
+
+    Returns:
+      - single-channel: (N, freq, power_bins)
+      - multi-channel:  (N, H, W, C)  e.g. 224×224×3
+    """
     with h5py.File(mat_path, 'r') as f:
         data = f['all_persistences']
         arr = data[:]
@@ -190,6 +195,12 @@ def preprocess(data, mode, pca_dim, data_type):
     n_samples = data.shape[0]
 
     if data_type == 'stft' or data_type == 'persistence':
+        # multi-channel persistence (N,H,W,C): 沿通道平均后按 2D 处理
+        if data.ndim == 4:
+            print(f'  multi-channel persistence C={data.shape[3]}, mean over channels')
+            data = np.mean(data, axis=3)
+        if data.ndim != 3:
+            raise ValueError(f'Expected 3D (N,H,W) after channel-reduce, got {data.shape}')
         _, n_freq, n_time = data.shape
         if mode == 'avg_time':
             features = np.mean(data, axis=2)

@@ -1,13 +1,21 @@
-function [samples,metadata] = multi_generation_v2(jam_types,params,current_jnr,data_num,cfg)
+function [samples,metadata,components] = multi_generation_v2(jam_types,params,current_jnr,data_num,cfg,fixed)
 % multi_generation_v2 - 使用配置文件生成多干扰类型样本
 % 输入:
 %   params - 信号参数结构体
 %   current_jnr - 当前干噪比 dB
 %   data_num - 生成样本数
 %   cfg - 配置结构体
+%   fixed - 可选。非空时复用同一条回波/噪声实现（配对诊断集用）：
+%           .B .taup .sweep_dir .pos .white_noise .random_phase
 % 输出:
-%   samples - 生成的信号样本
+%   samples - 生成的信号样本（混合 IQ）
 %   metadata - 每个样本的生成参数信息
+%   components - 每个样本的分量：.jams（各干扰分量 cell）、.types、.roles、
+%                .E（含相位与 SNR 的回波）、.W（单位功率噪声）
+
+if nargin < 6
+    fixed = [];
+end
 
 % 初始化输出
 N_total = params.N_total;
@@ -15,27 +23,39 @@ As = 10^(params.SNR/20);
 samples = zeros(data_num, N_total);
 
 % 初始化metadata结构数组
-metadata = struct('sample_idx', {}, 'jam_types', {}, 'JNR', {}, 'pos', {}, 'B', {}, 'taup', {}, 'mu', {}, 'sweep_dir', {}, 'jam_params', {});
+metadata = struct('sample_idx', {}, 'jam_types', {}, 'JNR', {}, 'pos', {}, 'B', {}, 'taup', {}, 'mu', {}, 'sweep_dir', {}, 'jam_params', {}, 'component_params', {}, 'roles', {});
+components = struct('jams', {}, 'types', {}, 'roles', {}, 'E', {}, 'W', {}, 'component_params', {});
 
 for m = 1:data_num
     % 初始化当前样本的metadata
     metadata(m).sample_idx = m;
-    metadata(m).jam_types = jam_types; 
+    metadata(m).jam_types = jam_types;
     metadata(m).JNR = current_jnr;
     metadata(m).jam_params = struct();
+    metadata(m).component_params = {};
+    metadata(m).roles = {};
 
-    % --- 样本级 LFM 随机化 (先于 pos 随机化) ---
-    if isfield(cfg.signal, 'B_range') && ~isempty(cfg.signal.B_range)
-        [params.B, params.taup, params.sweep_dir] = ...
-            sample_lfm_params(cfg.signal, params.fs, params.PRI);
+    if isempty(fixed)
+        % --- 样本级 LFM 随机化 (先于 pos 随机化) ---
+        if isfield(cfg.signal, 'B_range') && ~isempty(cfg.signal.B_range)
+            [params.B, params.taup, params.sweep_dir] = ...
+                sample_lfm_params(cfg.signal, params.fs, params.PRI);
+        else
+            params.sweep_dir = 1;  % 默认上扫
+        end
+
+        % --- 目标位置随机化 ---
+        pos_range = cfg.generation.pos_range;
+        current_pos = pos_range(1) + randi([0, pos_range(2)-pos_range(1)]);
+        params.pos = current_pos;
     else
-        params.sweep_dir = 1;  % 默认上扫
+        % --- 配对诊断：复用给定实现 ---
+        params.B = fixed.B;
+        params.taup = fixed.taup;
+        params.sweep_dir = fixed.sweep_dir;
+        params.pos = fixed.pos;
+        current_pos = fixed.pos;
     end
-
-    % --- 目标位置随机化 ---
-    pos_range = cfg.generation.pos_range;
-    current_pos = pos_range(1) + randi([0, pos_range(2)-pos_range(1)]);
-    params.pos = current_pos;
 
     % --- 生成基础目标信号 ---
     [tx, params] = generate_0base_signal(params);
@@ -53,9 +73,17 @@ for m = 1:data_num
     metadata(m).sweep_dir = params.sweep_dir;
 
     % --- 生成噪声 ---
-    white_noise = randn([1,N_total]) + 1j*randn([1,N_total]);
-    white_noise = white_noise / std(white_noise);
+    if isempty(fixed)
+        white_noise = randn([1,N_total]) + 1j*randn([1,N_total]);
+        white_noise = white_noise / std(white_noise);
+    else
+        white_noise = fixed.white_noise;
+    end
     sum_jam = zeros(1, N_total);
+    comp_jams = {};
+    comp_types = {};
+    comp_roles = {};
+    comp_params = {};
 
     if ischar(jam_types)
         jam_types = string(jam_types);
@@ -64,6 +92,8 @@ for m = 1:data_num
     end
 
     for jam_type = jam_types
+        jam_info = struct();
+        pure_jam = zeros(1, N_total);
         switch jam_type
             case 'clean'  % 纯LFM信号，不生成干扰
                 % sum_jam 保持为零向量，无需任何操作
@@ -265,16 +295,49 @@ for m = 1:data_num
             %     metadata(m).jam_params.vgpo_doppler_direction = jam_info(1).doppler_direction;
             %     metadata(m).jam_params.vgpo_final_fd_kHz = jam_info(1).final_fd_kHz;
         end
+
+        % --- 记录本分量（clean 不计入干扰分量）---
+        if ~strcmp(char(jam_type), 'clean')
+            comp_jams{end+1} = pure_jam;
+            comp_types{end+1} = char(jam_type);
+            if is_deceptive_type(char(jam_type))
+                comp_roles{end+1} = 'D';
+            else
+                comp_roles{end+1} = 'S';
+            end
+            comp_params{end+1} = struct('type', char(jam_type), 'jam_info', jam_info);
+        end
         sum_jam = sum_jam + pure_jam;
     end
 
     % --- 混合信号 ---
     pure_echo = As * tx;
-    random_phase = exp(rand*2*pi*1i);
-    rx = pure_echo * random_phase + sum_jam + white_noise;
+    if isempty(fixed)
+        random_phase = exp(rand*2*pi*1i);
+    else
+        random_phase = fixed.random_phase;
+    end
+    E = pure_echo * random_phase;
+    rx = E + sum_jam + white_noise;
 
     samples(m, :) = rx;
+    metadata(m).component_params = comp_params;
+    metadata(m).roles = comp_roles;
+    components(m).jams = comp_jams;
+    components(m).types = comp_types;
+    components(m).roles = comp_roles;
+    components(m).E = E;
+    components(m).W = white_noise;
+    components(m).component_params = comp_params;
 end
+end
+
+% ==========================================================
+% 干扰类型分类
+% ==========================================================
+function tf = is_deceptive_type(t)
+    D = {'DFTJ','SMSPJ','CSJ','ISCJ','ISRJ','MISRJ','ISDJ','C&IJ'};
+    tf = any(strcmp(t, D));
 end
 
 
